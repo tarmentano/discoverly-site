@@ -102,6 +102,13 @@
     </div>
   </div>
 
+  <div class="card hidden" id="staffCard">
+    <label>Your people</label>
+    <div class="edit-hint">Staff can publish sermons and manage this panel. When leadership changes, promote the successor first — a church always keeps at least one staff member.</div>
+    <div id="staffList"></div>
+    <div class="status" id="staffStatus"></div>
+  </div>
+
   <div class="card hidden" id="manageCard">
     <button class="refresh" onclick="loadSermons()">↻ Refresh</button>
     <label>Manage sermons</label>
@@ -121,7 +128,8 @@ db.auth.onAuthStateChange((_e, session) => {
   document.getElementById('workCard').classList.toggle('hidden', !session);
   document.getElementById('manageCard').classList.toggle('hidden', !session);
   document.getElementById('inviteCard').classList.toggle('hidden', !session);
-  if (session) { loadSermons(); loadInvite(); }
+  document.getElementById('staffCard').classList.toggle('hidden', !session);
+  if (session) { loadSermons(); loadInvite(); loadStaff(); }
 });
 
 function modeChange(){
