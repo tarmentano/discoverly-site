@@ -1,0 +1,266 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Discoverly Admin</title>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<script src="https://cdn.jsdelivr.net/gh/davidshimjs/qrcodejs@master/qrcode.min.js"></script>
+<style>
+  :root{color-scheme:light;--ink:#20211C;--muted:#6E6A5E;--bg:#FAF6F0;--card:#fff;--line:#E7DFD2;
+    --coral:#D46A45;--coral-bg:#F7E3D9;--pine:#274A3D;--pine-bg:#E2EBE4;--green:#4C9A62;--green-bg:#E4F1E7;--gold:#9A742A;--gold-bg:#F4E8CE;--rose:#C73E5A}
+  *{margin:0;padding:0;box-sizing:border-box;font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif}
+  body{background:var(--bg);color:var(--ink);padding:20px;max-width:780px;margin:0 auto}
+  h1{font-size:20px}
+  .brand{font-family:Georgia,serif;font-weight:600;font-size:23px}
+  .brand b{color:var(--coral)}
+  .sub{color:var(--muted);font-size:13px;margin:4px 0 18px}
+  .card{background:var(--card);border:1px solid var(--line);border-radius:14px;padding:18px;margin-bottom:14px}
+  label{display:block;font-size:12px;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:.06em;margin:10px 0 6px}
+  input,textarea{width:100%;border:1px solid var(--line);border-radius:10px;padding:10px 12px;font-size:14px;background:#fbfcfe;color:var(--ink)}
+  textarea{min-height:160px;resize:vertical;line-height:1.5}
+  .mode-row{display:flex;gap:16px;margin:4px 0 8px}
+  .mode-row label{display:flex;align-items:center;gap:6px;font-size:13.5px;text-transform:none;letter-spacing:0;margin:0;font-weight:600;cursor:pointer}
+  .mode-row input{width:auto}
+  .note{font-size:12.5px;color:var(--muted);background:var(--pine-bg);border-radius:10px;padding:9px 12px;margin-bottom:6px;line-height:1.5;display:none}
+  .btn{border:none;border-radius:999px;padding:13px 18px;font-size:14px;font-weight:600;cursor:pointer;width:100%;margin-top:14px}
+  .btn.pine{background:var(--pine);color:#F2EFE6}
+  .btn.coral{background:var(--coral);color:#FDFBF7}
+  .btn:disabled{opacity:.5}
+  .status{font-size:13px;padding:10px 14px;border-radius:10px;margin-top:10px;display:none}
+  .status.err{display:block;background:#fdecef;color:var(--rose)}
+  .status.ok{display:block;background:var(--green-bg);color:var(--green);font-weight:600}
+  .mission{background:var(--card);border:1px solid var(--line);border-radius:12px;padding:13px 15px;margin-bottom:9px}
+  .m-title{font-size:14px;font-weight:700;padding:2px 4px;border-radius:6px}
+  .m-desc{font-size:12.5px;color:var(--muted);margin-top:3px;line-height:1.45;padding:2px 4px;border-radius:6px}
+  .m-title:focus,.m-desc:focus{outline:2px solid var(--coral);background:#fff}
+  .m-row{display:flex;align-items:center;gap:10px;margin-top:8px;font-size:12px;color:var(--muted)}
+  .m-cat{font-size:11px;font-weight:700;color:var(--pine);background:var(--pine-bg);padding:4px 11px;border-radius:999px}
+  .m-del{margin-left:auto;border:1px solid var(--line);background:#fff;color:var(--rose);border-radius:8px;font-size:11.5px;font-weight:700;padding:5px 10px;cursor:pointer}
+  .edit-hint{font-size:11.5px;color:var(--muted);margin-bottom:10px}
+  .hidden{display:none}
+  /* manage sermons */
+  .s-row{display:flex;align-items:center;gap:10px;border:1px solid var(--line);border-radius:12px;padding:11px 14px;margin-bottom:8px;flex-wrap:wrap}
+  .s-info{flex:1;min-width:180px}
+  .s-title{font-size:14px;font-weight:700}
+  .s-meta{font-size:12px;color:var(--muted);margin-top:2px}
+  .pill{font-size:10.5px;font-weight:800;padding:4px 11px;border-radius:999px;letter-spacing:.04em}
+  .pill.pub{background:var(--green-bg);color:var(--green)}
+  .pill.draft{background:var(--gold-bg);color:var(--gold)}
+  .sm-btn{border:1px solid var(--line);background:#fff;border-radius:8px;font-size:11.5px;font-weight:700;padding:6px 11px;cursor:pointer}
+  .sm-btn.danger{color:var(--rose)}
+  .refresh{background:none;border:none;color:var(--coral);font-weight:700;font-size:12.5px;cursor:pointer;float:right}
+</style>
+</head>
+<body>
+  <h1><span class="brand">discoverly<b>.</b></span> Admin</h1>
+  <div class="sub">Sermon, homily, or Sunday readings in — missions out. You approve every word.</div>
+
+  <div class="card" id="authCard">
+    <label>Staff email</label>
+    <input id="email" type="email" placeholder="pastor@yourchurch.org">
+    <button class="btn pine" onclick="signIn()">Send magic link</button>
+    <div class="status" id="authStatus"></div>
+  </div>
+
+  <div class="card hidden" id="workCard">
+    <label>Source</label>
+    <div class="mode-row">
+      <label><input type="radio" name="mode" value="transcript" checked onchange="modeChange()"> From transcript</label>
+      <label><input type="radio" name="mode" value="lectionary" onchange="modeChange()"> ⛪ From Sunday lectionary (Catholic)</label>
+    </div>
+    <div class="note" id="lectNote">Missions come from the Mass readings for the chosen Sunday — Gospel first. Pasting the homily below is optional but makes them richer. <b>Verify the readings against your missalette before publishing.</b></div>
+
+    <label>Sermon title <span style="text-transform:none;letter-spacing:0;font-weight:400">(AI fills if blank)</span></label>
+    <input id="title" placeholder="e.g. Over-Desire and The Way Back">
+    <label>Sunday date</label>
+    <input id="date" type="date">
+    <label>Transcript <span id="optTag" style="text-transform:none;letter-spacing:0;font-weight:400"></span></label>
+    <textarea id="transcript" placeholder="Paste the sermon or homily transcript here"></textarea>
+    <button class="btn pine" id="genBtn" onclick="generate()">Generate missions with AI</button>
+    <div class="status" id="workStatus"></div>
+  </div>
+
+  <div class="card hidden" id="reviewCard">
+    <label>Draft missions</label>
+    <div class="edit-hint">Click any title or description to edit it. Remove what doesn't fit. Your edits save when you publish.</div>
+    <div id="missionList"></div>
+    <button class="btn coral" onclick="publish()">Save edits and publish to congregation</button>
+    <div class="status" id="pubStatus"></div>
+  </div>
+
+  <div class="card hidden" id="inviteCard">
+    <label>Invite your church</label>
+    <div class="edit-hint">Put this on the big screen. Members scan, get the app, and join with your church code.</div>
+    <div style="display:flex;gap:22px;align-items:center;flex-wrap:wrap">
+      <div id="qrBox" style="background:#fff;padding:12px;border:1px solid var(--line);border-radius:12px"></div>
+      <div>
+        <div style="font-size:12px;font-weight:700;color:var(--muted);letter-spacing:.06em">CHURCH CODE</div>
+        <div id="churchCode" style="font-family:Georgia,serif;font-size:44px;font-weight:600;color:var(--pine);letter-spacing:.06em">------</div>
+        <div id="joinUrl" style="font-size:12.5px;color:var(--muted)"></div>
+      </div>
+    </div>
+  </div>
+
+  <div class="card hidden" id="manageCard">
+    <button class="refresh" onclick="loadSermons()">↻ Refresh</button>
+    <label>Manage sermons</label>
+    <div class="edit-hint">Members see published sermons only, and This Week always shows the most recent Sunday that has arrived. Future-dated sermons unveil themselves automatically.</div>
+    <div id="sermonList"></div>
+    <div class="status" id="manageStatus"></div>
+  </div>
+
+<script>
+const SUPABASE_URL = "https://nsrczpqsddvfsazwyhao.supabase.co";
+const SUPABASE_ANON_KEY = "sb_publishable_h-Z5uroq5ob8Ctr3dp_0eA_b7d5jzAJ";
+const db = supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+let sermonId = null;
+
+db.auth.onAuthStateChange((_e, session) => {
+  document.getElementById('authCard').classList.toggle('hidden', !!session);
+  document.getElementById('workCard').classList.toggle('hidden', !session);
+  document.getElementById('manageCard').classList.toggle('hidden', !session);
+  document.getElementById('inviteCard').classList.toggle('hidden', !session);
+  if (session) { loadSermons(); loadInvite(); }
+});
+
+function modeChange(){
+  const lect = document.querySelector('input[name=mode]:checked').value === 'lectionary';
+  document.getElementById('lectNote').style.display = lect ? 'block' : 'none';
+  document.getElementById('optTag').textContent = lect ? '(optional — enriches the missions)' : '';
+}
+
+async function signIn(){
+  const email = document.getElementById('email').value.trim();
+  const { error } = await db.auth.signInWithOtp({ email });
+  show('authStatus', error ? error.message : 'Check your email for the sign-in link', !error);
+}
+
+/* ---------- generate & publish ---------- */
+async function generate(){
+  const btn = document.getElementById('genBtn');
+  const transcript = document.getElementById('transcript').value.trim();
+  const lect = document.querySelector('input[name=mode]:checked').value === 'lectionary';
+  const dateVal = document.getElementById('date').value;
+  if (lect && !dateVal) return show('workStatus', 'Pick the Sunday date for lectionary mode.', false);
+  if (!lect && transcript.length < 200) return show('workStatus', 'Paste at least a few paragraphs.', false);
+  btn.disabled = true;
+  show('workStatus', lect ? 'Finding the readings, drafting missions...' : 'Reading the sermon, drafting missions...', true);
+  try {
+    const uid = (await db.auth.getUser()).data.user.id;
+    const { data: prof } = await db.from('profiles').select('church_id').eq('id', uid).single();
+    const { data: sermon, error: sErr } = await db.from('sermons').insert({
+      church_id: prof.church_id,
+      title: document.getElementById('title').value.trim() || 'Untitled',
+      preached_on: dateVal || new Date().toISOString().slice(0,10),
+    }).select().single();
+    if (sErr) throw sErr;
+    sermonId = sermon.id;
+
+    const { data, error } = await db.functions.invoke('process-sermon', {
+      body: { sermon_id: sermonId, transcript, lectionary_date: lect ? dateVal : undefined },
+    });
+    if (error) { let msg = error.message; try { const b = await error.context.json(); msg = b.error || msg; } catch(_){} throw new Error(msg); }
+    if (data.error) throw new Error(data.error);
+
+    const { data: ms } = await db.from('missions').select('*').eq('sermon_id', sermonId).order('position');
+    renderMissions(ms || []);
+    document.getElementById('reviewCard').classList.remove('hidden');
+    show('workStatus', 'Drafted "' + (data.title || 'sermon') + '" — review and edit below, then publish.', true);
+  } catch (e) {
+    show('workStatus', e.message || String(e), false);
+  } finally { btn.disabled = false; }
+}
+
+function renderMissions(ms){
+  document.getElementById('missionList').innerHTML = ms.map(m =>
+    '<div class="mission" data-id="' + m.id + '">' +
+      '<div class="m-title" contenteditable="true">' + esc(m.emoji) + ' ' + esc(m.title) + '</div>' +
+      '<div class="m-desc" contenteditable="true">' + esc(m.description) + '</div>' +
+      '<div class="m-row"><span class="m-cat">' + esc(m.category) + '</span>' +
+      '<button class="m-del" onclick="this.closest(\'.mission\').remove()">Remove</button></div>' +
+    '</div>').join('');
+}
+
+async function publish(){
+  try {
+    const cards = [...document.querySelectorAll('.mission')];
+    if (!cards.length) return show('pubStatus', 'Keep at least one mission.', false);
+    const keptIds = [];
+    for (const c of cards) {
+      const id = c.dataset.id;
+      keptIds.push(id);
+      const raw = c.querySelector('.m-title').innerText.trim();
+      const emojiMatch = raw.match(/^(\p{Extended_Pictographic}\uFE0F?)\s*/u);
+      const emoji = emojiMatch ? emojiMatch[1] : '⭐';
+      const title = raw.replace(/^(\p{Extended_Pictographic}\uFE0F?)\s*/u, '').trim().slice(0, 80);
+      const description = c.querySelector('.m-desc').innerText.trim().slice(0, 400);
+      const { error } = await db.from('missions').update({ emoji, title, description }).eq('id', id);
+      if (error) throw error;
+    }
+    const { data: all } = await db.from('missions').select('id').eq('sermon_id', sermonId);
+    const removed = (all || []).filter(m => !keptIds.includes(m.id)).map(m => m.id);
+    if (removed.length) await db.from('missions').delete().in('id', removed);
+    const { error: pErr } = await db.from('sermons').update({ status: 'published' }).eq('id', sermonId);
+    if (pErr) throw pErr;
+    show('pubStatus', 'Published! Members will see the missions now.', true);
+    loadSermons();
+  } catch (e) {
+    show('pubStatus', e.message || String(e), false);
+  }
+}
+
+/* ---------- manage sermons ---------- */
+async function loadSermons(){
+  const { data, error } = await db.from('sermons')
+    .select('id, title, preached_on, status, missions(count)')
+    .order('preached_on', { ascending: false })
+    .order('created_at', { ascending: false });
+  if (error) return show('manageStatus', error.message, false);
+  const rows = data || [];
+  document.getElementById('sermonList').innerHTML = rows.length === 0
+    ? '<div class="edit-hint">No sermons yet — generate your first one above.</div>'
+    : rows.map(s => {
+        const n = (s.missions && s.missions[0] && s.missions[0].count) || 0;
+        const pub = s.status === 'published';
+        return '<div class="s-row">' +
+          '<div class="s-info"><div class="s-title">' + esc(s.title) + '</div>' +
+          '<div class="s-meta">' + s.preached_on + ' · ' + n + ' mission' + (n === 1 ? '' : 's') + '</div></div>' +
+          '<span class="pill ' + (pub ? 'pub' : 'draft') + '">' + (pub ? 'LIVE' : 'DRAFT') + '</span>' +
+          '<button class="sm-btn" onclick="toggleStatus(\'' + s.id + '\', \'' + s.status + '\')">' + (pub ? 'Unpublish' : 'Publish') + '</button>' +
+          '<button class="sm-btn danger" onclick="delSermon(\'' + s.id + '\', \'' + esc(s.title).replace(/'/g, '') + '\')">Delete</button>' +
+        '</div>';
+      }).join('');
+}
+
+async function toggleStatus(id, current){
+  const next = current === 'published' ? 'draft' : 'published';
+  const { error } = await db.from('sermons').update({ status: next }).eq('id', id);
+  show('manageStatus', error ? error.message : (next === 'published' ? 'Published.' : 'Unpublished — hidden from members.'), !error);
+  loadSermons();
+}
+
+async function delSermon(id, title){
+  if (!confirm('Delete "' + title + '" and its missions? Members\' journal reflections for it will also be removed. This cannot be undone.')) return;
+  const { error } = await db.from('sermons').delete().eq('id', id);
+  show('manageStatus', error ? error.message : 'Deleted.', !error);
+  loadSermons();
+}
+
+async function loadInvite(){
+  const uid = (await db.auth.getUser()).data.user.id;
+  const { data: prof } = await db.from('profiles').select('church_id, churches(code, name)').eq('id', uid).single();
+  const code = prof && prof.churches ? prof.churches.code : null;
+  if (!code) return;
+  const url = 'https://discoverly.com/join/?c=' + encodeURIComponent(code);
+  document.getElementById('churchCode').textContent = code;
+  document.getElementById('joinUrl').textContent = url;
+  document.getElementById('qrBox').innerHTML = '';
+  new QRCode(document.getElementById('qrBox'), { text: url, width: 180, height: 180, colorDark: '#274A3D' });
+}
+
+function show(id, msg, ok){ const el = document.getElementById(id); el.textContent = msg; el.className = 'status ' + (ok ? 'ok' : 'err'); }
+function esc(s){ return String(s ?? '').replace(/</g,'&lt;'); }
+</script>
+</body>
+</html>

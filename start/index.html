@@ -1,0 +1,103 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Start your church on Discoverly</title>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<style>
+  :root{color-scheme:light}
+  body{margin:0;font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;background:#FAF6F0;color:#20211C;display:flex;min-height:100vh;align-items:center;justify-content:center;padding:24px}
+  .box{max-width:440px;width:100%}
+  .logo{font-family:Georgia,serif;font-size:30px;font-weight:600;text-align:center}
+  .logo span{color:#D46A45}
+  h1{font-family:Georgia,serif;font-size:26px;font-weight:600;margin:22px 0 8px;text-align:center}
+  .sub{color:#6E6A5E;font-size:15px;line-height:1.55;text-align:center;margin-bottom:26px}
+  label{display:block;font-size:12px;font-weight:700;color:#6E6A5E;text-transform:uppercase;letter-spacing:.06em;margin:14px 0 6px}
+  input{width:100%;box-sizing:border-box;border:1px solid #E7DFD2;border-radius:12px;padding:13px 14px;font-size:15px;background:#fff;color:#20211C}
+  .trad{display:flex;gap:12px;margin-top:6px}
+  .trad label{display:flex;align-items:center;gap:7px;font-size:14px;text-transform:none;letter-spacing:0;margin:0;font-weight:600;cursor:pointer;border:1.5px solid #E7DFD2;border-radius:12px;padding:11px 14px;flex:1;background:#fff}
+  .trad input{width:auto}
+  .btn{width:100%;border:none;background:#D46A45;color:#FDFBF7;font-weight:600;font-size:16px;padding:16px;border-radius:999px;cursor:pointer;margin-top:24px}
+  .btn:disabled{opacity:.5}
+  .err{display:none;background:#fdecef;color:#C73E5A;border-radius:10px;padding:10px 14px;font-size:13.5px;margin-top:12px}
+  .done{display:none;text-align:center}
+  .code-label{font-size:12px;font-weight:700;letter-spacing:.14em;color:#6E6A5E;margin-top:26px}
+  .code{font-family:Georgia,serif;font-size:52px;font-weight:600;letter-spacing:.08em;color:#274A3D;background:#E2EBE4;border-radius:18px;padding:10px 24px;display:inline-block;margin-top:8px}
+  .done p{color:#6E6A5E;font-size:15px;line-height:1.6}
+  .fine{font-size:12.5px;color:#6E6A5E;text-align:center;margin-top:20px;line-height:1.5}
+</style>
+</head>
+<body>
+  <div class="box">
+    <div class="logo">discoverly<span>.</span></div>
+
+    <div id="form">
+      <h1>Start your church, free</h1>
+      <div class="sub">Two minutes to your own admin panel, church code, and QR for the big screen. Free up to 25 members — members never pay.</div>
+      <label>Church or parish name</label>
+      <input id="cname" placeholder="e.g. Northside Community Church">
+      <label>Tradition</label>
+      <div class="trad">
+        <label><input type="radio" name="trad" value="protestant" checked> Protestant</label>
+        <label><input type="radio" name="trad" value="catholic"> ⛪ Catholic</label>
+      </div>
+      <label>Your name</label>
+      <input id="pname" placeholder="Pastor Mike">
+      <label>Your email</label>
+      <input id="email" type="email" placeholder="you@yourchurch.org">
+      <button class="btn" id="go" onclick="start()">Create my church</button>
+      <div class="err" id="err"></div>
+      <div class="fine">By continuing you agree we'll email you a sign-in link. No card required. Grace first, always.</div>
+    </div>
+
+    <div class="done" id="done">
+      <h1>Welcome aboard 🌱</h1>
+      <div class="code-label">YOUR CHURCH CODE</div>
+      <div class="code" id="codeOut">------</div>
+      <p><b>Write this down</b> — it's how your members join.</p>
+      <p>Now check <b id="emailOut"></b> for your sign-in link. It opens your admin panel, where you'll turn Sunday's message into this week's missions.</p>
+    </div>
+  </div>
+
+<script>
+const SUPABASE_URL = "https://nsrczpqsddvfsazwyhao.supabase.co";
+const SUPABASE_ANON_KEY = "sb_publishable_h-Z5uroq5ob8Ctr3dp_0eA_b7d5jzAJ";
+const db = supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+
+async function start(){
+  const btn = document.getElementById('go');
+  const name = document.getElementById('cname').value.trim();
+  const pname = document.getElementById('pname').value.trim();
+  const email = document.getElementById('email').value.trim();
+  const trad = document.querySelector('input[name=trad]:checked').value;
+  if (name.length < 3) return showErr('Please enter your church name.');
+  if (!email.includes('@')) return showErr('Please enter a valid email.');
+  btn.disabled = true; btn.textContent = 'Creating…';
+  try {
+    const { data, error } = await db.functions.invoke('create-church', { body: { church_name: name, tradition: trad } });
+    if (error) { let m = error.message; try { const b = await error.context.json(); m = b.error || m; } catch(_){} throw new Error(m); }
+    if (data.error) throw new Error(data.error);
+
+    const { error: aErr } = await db.auth.signInWithOtp({
+      email,
+      options: {
+        data: { church_id: data.church_id, display_name: pname || 'Pastor', role_request: 'staff' },
+        emailRedirectTo: 'https://discoverly.com/admin/',
+      },
+    });
+    if (aErr) throw aErr;
+
+    document.getElementById('codeOut').textContent = data.code;
+    document.getElementById('emailOut').textContent = email;
+    document.getElementById('form').style.display = 'none';
+    document.getElementById('done').style.display = 'block';
+  } catch (e) {
+    showErr(e.message || String(e));
+    btn.disabled = false; btn.textContent = 'Create my church';
+  }
+}
+function showErr(m){ const el = document.getElementById('err'); el.textContent = m; el.style.display = 'block'; }
+</script>
+</body>
+</html>
