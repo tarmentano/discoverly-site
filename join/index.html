@@ -1,0 +1,39 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Join your church on Discoverly</title>
+<style>
+  :root{color-scheme:light}
+  body{margin:0;font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;background:#274A3D;color:#F2EFE6;display:flex;min-height:100vh;align-items:center;justify-content:center;text-align:center;padding:24px}
+  .box{max-width:420px}
+  .logo{font-family:Georgia,serif;font-size:34px;font-weight:600}
+  .logo span{color:#E8906B}
+  h1{font-family:Georgia,serif;font-size:26px;font-weight:600;margin:26px 0 8px}
+  p{color:#C4D2C8;font-size:16px;line-height:1.55;margin:8px 0}
+  .code-label{font-size:12px;font-weight:700;letter-spacing:.14em;color:#9DB3A6;margin-top:30px}
+  .code{font-family:Georgia,serif;font-size:56px;font-weight:600;letter-spacing:.08em;background:rgba(255,255,255,.08);border-radius:18px;padding:12px 26px;display:inline-block;margin-top:8px}
+  .btn{display:block;background:#D46A45;color:#FDFBF7;font-weight:600;font-size:17px;padding:16px;border-radius:999px;text-decoration:none;margin-top:30px}
+  .btn.ghost{background:transparent;border:1.5px solid rgba(255,255,255,.3);margin-top:12px}
+  .fine{font-size:13px;color:#9DB3A6;margin-top:26px}
+</style>
+</head>
+<body>
+  <div class="box">
+    <div class="logo">discoverly<span>.</span></div>
+    <h1>You're invited to walk out Sunday's message — together.</h1>
+    <p>Weekly missions from your church's sermon. Free for members, always.</p>
+    <div class="code-label">YOUR CHURCH CODE</div>
+    <div class="code" id="code">------</div>
+    <a class="btn" id="getApp" href="https://discoverly.com">Get the Discoverly app</a>
+    <a class="btn ghost" id="openApp" href="#">Already have it? Open the app</a>
+    <p class="fine">In the app, choose "Join your church" and enter the code above.</p>
+  </div>
+<script>
+  const c = new URLSearchParams(location.search).get('c') || '------';
+  document.getElementById('code').textContent = c.toUpperCase();
+  document.getElementById('openApp').href = 'discoverly://join?c=' + encodeURIComponent(c.toUpperCase());
+</script>
+</body>
+</html>
