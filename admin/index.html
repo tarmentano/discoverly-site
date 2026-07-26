@@ -71,12 +71,17 @@
     </div>
     <div class="note" id="lectNote">Missions come from the Mass readings for the chosen Sunday — Gospel first. Pasting the homily below is optional but makes them richer. <b>Verify the readings against your missalette before publishing.</b></div>
 
-    <label>Sermon title <span style="text-transform:none;letter-spacing:0;font-weight:400">(AI fills if blank)</span></label>
+    <label>Sermon title <span style="text-transform:none;letter-spacing:0;font-weight:400">(Discoverly fills if blank)</span></label>
     <input id="title" placeholder="e.g. Over-Desire and The Way Back">
     <label>Sunday date</label>
     <input id="date" type="date">
     <label>Transcript <span id="optTag" style="text-transform:none;letter-spacing:0;font-weight:400"></span></label>
     <textarea id="transcript" placeholder="Paste the sermon or homily transcript here"></textarea>
+    <label>Or fetch it from YouTube</label>
+    <div style="display:flex;gap:8px">
+      <input id="ytUrl" placeholder="Paste your service's YouTube link" style="flex:1">
+      <button class="sm-btn" style="white-space:nowrap" onclick="fetchYT()">Fetch transcript</button>
+    </div>
     <button class="btn pine" id="genBtn" onclick="generate()">Generate Missions from the Message</button>
     <div class="status" id="workStatus"></div>
   </div>
