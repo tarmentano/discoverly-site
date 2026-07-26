@@ -102,8 +102,15 @@
   </div>
 
   <div class="card hidden" id="reviewCard">
+    <label>The message</label>
+    <div class="edit-hint" id="messageHint">Click any field to edit. Discoverly checks the scripture reference for you before it reaches anyone.</div>
+    <input id="rTitle" placeholder="Sermon title">
+    <input id="rScripture" placeholder="Scripture — e.g. 1 Corinthians 3:21-4:7" onblur="checkScripture()">
+    <div class="status" id="refStatus" style="display:none"></div>
+    <textarea id="rSummary" class="small" placeholder="The summary members see under the title"></textarea>
+
     <label>Draft missions</label>
-    <div class="edit-hint">Click any title or description to edit it. Remove what doesn't fit. Your edits save when you publish.</div>
+    <div class="edit-hint">Click any title or description to edit it. Remove what doesn't fit.</div>
     <div id="missionList"></div>
 
     <label id="fbLabel">Ask Discoverly for changes</label>
@@ -115,7 +122,7 @@
     <div class="edit-hint" id="redraftCount" style="margin-top:8px"></div>
     <div class="upgrade" id="upgradeNote">Feedback-guided redrafts are part of a paid church plan — a plain redraw is always available, and you can edit every word by hand.</div>
 
-    <button class="btn coral" onclick="publish()">Save edits and publish to congregation</button>
+    <button class="btn coral" id="publishBtn" onclick="publish()">Save edits and publish to congregation</button>
     <div class="status" id="pubStatus"></div>
   </div>
 
@@ -161,6 +168,135 @@ const SUPABASE_ANON_KEY = "sb_publishable_h-Z5uroq5ob8Ctr3dp_0eA_b7d5jzAJ";
 const db = supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
 let sermonId = null;
 let lastPoints = [];
+let editingLive = false;   // true when correcting a sermon members can already see
+
+/* ---------- scripture reference checking ----------
+   Two failure modes, both seen in real pilot data:
+   1. A transcript drops a colon, so "3:21-4:7" becomes "3:21-47" and resolves to nothing.
+   2. An alternate book name silently resolves to a DIFFERENT book — "Ecclesiasticus"
+      comes back as Ecclesiastes with no error at all.
+   So we check that a reference resolves AND that it lands on the book we asked for. */
+const REF_BOOKS = ("Genesis|Exodus|Leviticus|Numbers|Deuteronomy|Joshua|Judges|Ruth|1 Samuel|2 Samuel|" +
+  "1 Kings|2 Kings|1 Chronicles|2 Chronicles|Ezra|Nehemiah|Esther|Job|Psalms|Psalm|Proverbs|Ecclesiastes|" +
+  "Song of Solomon|Isaiah|Jeremiah|Lamentations|Ezekiel|Daniel|Hosea|Joel|Amos|Obadiah|Jonah|Micah|Nahum|" +
+  "Habakkuk|Zephaniah|Haggai|Zechariah|Malachi|Matthew|Mark|Luke|John|Acts|Romans|1 Corinthians|" +
+  "2 Corinthians|Galatians|Ephesians|Philippians|Colossians|1 Thessalonians|2 Thessalonians|1 Timothy|" +
+  "2 Timothy|Titus|Philemon|Hebrews|James|1 Peter|2 Peter|1 John|2 John|3 John|Jude|Revelation|" +
+  "Wisdom of Solomon|Wisdom|Sirach|Ecclesiasticus|Tobit|Judith|Baruch|1 Maccabees|2 Maccabees|" +
+  "1 Esdras|2 Esdras").split("|");
+const REF_ALT = REF_BOOKS.slice().sort((a,b) => b.length - a.length).map(b => b.replace(/ /g, '\\s')).join('|');
+const ADMIN_REF_RE = new RegExp('\\b(' + REF_ALT + ')\\.?\\s(\\d{1,3})(?::\\d{1,3}(?:[–—-]\\d{1,3}(?::\\d{1,3})?)?(?:,\\s?\\d{1,3}(?:[–—-]\\d{1,3})?)*)?', 'g');
+
+const REF_ALIASES = [[/^ecclesiasticus\b/i, 'Sirach'], [/^wisdom(?!\s+of\s+solomon)\b/i, 'Wisdom of Solomon']];
+function normalizeRef(ref){
+  const out = String(ref || '').trim();
+  for (const [p, c] of REF_ALIASES) if (p.test(out)) return out.replace(p, c);
+  return out;
+}
+function bookOf(ref){
+  const m = String(ref || '').match(new RegExp('^(' + REF_ALT + ')', 'i'));
+  return m ? m[1].replace(/\s+/g, ' ') : '';
+}
+function sameBook(a, b){
+  const norm = s => String(s || '').toLowerCase().replace(/[^a-z0-9]/g, '');
+  const x = norm(a), y = norm(b);
+  return !!x && !!y && (x === y || x.startsWith(y) || y.startsWith(x));
+}
+
+async function lookupRef(ref){
+  const norm = normalizeRef(ref);
+  try {
+    const res = await fetch('https://bible-api.com/' + encodeURIComponent(norm.toLowerCase()));
+    if (!res.ok) return { ok: false };
+    const data = await res.json();
+    if (!data || !data.verses || !data.verses.length) return { ok: false };
+    return { ok: true, reference: data.reference, count: data.verses.length, book: data.verses[0].book_name };
+  } catch (e) {
+    return { ok: false, offline: true };
+  }
+}
+
+/* A dropped colon turns "3:21-4:7" into "3:21-47". Try putting the colon back. */
+async function suggestFix(ref){
+  const m = String(ref || '').match(/^(.*?)(\d{1,3}):(\d{1,3})[–—-](\d{2,3})$/);
+  if (!m) return null;
+  const [, prefix, chap, v1, tail] = m;
+  for (let i = 1; i < tail.length; i++) {
+    const cand = prefix + chap + ':' + v1 + '-' + tail.slice(0, i) + ':' + tail.slice(i);
+    const r = await lookupRef(cand);
+    if (r.ok && sameBook(r.book, bookOf(cand))) return cand;
+  }
+  return null;
+}
+
+/* Checks the sermon scripture field. Warns, never blocks. */
+async function checkScripture(){
+  const el = document.getElementById('rScripture');
+  const box = document.getElementById('refStatus');
+  const ref = el.value.trim();
+  if (!ref) { box.style.display = 'none'; return true; }
+
+  box.style.display = 'block';
+  box.className = 'status';
+  box.textContent = 'Checking the reference…';
+
+  const r = await lookupRef(ref);
+  const asked = bookOf(ref);
+
+  if (r.ok && (!asked || sameBook(r.book, normalizeRef(asked)))) {
+    box.className = 'status ok';
+    box.textContent = 'Found — ' + r.reference + ' (' + r.count + ' verse' + (r.count === 1 ? '' : 's') + ').';
+    return true;
+  }
+
+  if (r.ok && asked) {
+    box.className = 'status err';
+    box.innerHTML = 'Heads up — "' + esc(ref) + '" comes back as ' + esc(r.book) +
+      ', a different book. ' + fixBtn(guessAlias(asked) ? ref.replace(new RegExp('^' + asked, 'i'), guessAlias(asked)) : '');
+    return false;
+  }
+
+  if (r.offline) {
+    box.className = 'status';
+    box.textContent = "Couldn't reach the scripture service just now — the reference wasn't checked. You can still save.";
+    return true;
+  }
+
+  box.className = 'status err';
+  const fix = await suggestFix(ref);
+  box.innerHTML = "We couldn't find " + esc(ref) + '. Transcripts often drop a colon. ' +
+    (fix ? fixBtn(fix) : 'Double-check the chapter and verses.');
+  return false;
+}
+function guessAlias(book){
+  for (const [p, c] of REF_ALIASES) if (p.test(book)) return c;
+  return '';
+}
+function fixBtn(cand){
+  if (!cand) return '';
+  return 'Did you mean ' + esc(cand) + '? ' +
+    '<button class="sm-btn" onclick="useFix(this.dataset.r)" data-r="' + esc(cand).replace(/"/g, '&quot;') + '">Use this</button>';
+}
+function useFix(ref){
+  document.getElementById('rScripture').value = ref;
+  checkScripture();
+}
+
+/* Any references embedded in mission text get the same treatment. */
+async function checkMissionRefs(){
+  const found = new Set();
+  document.querySelectorAll('.mission .m-desc, .mission .m-title').forEach(el => {
+    for (const m of el.innerText.matchAll(ADMIN_REF_RE)) found.add(m[0]);
+  });
+  const bad = [];
+  for (const ref of found) {
+    const r = await lookupRef(ref);
+    const asked = bookOf(ref);
+    if (!r.ok && !r.offline) bad.push(ref);
+    else if (r.ok && asked && !sameBook(r.book, normalizeRef(asked))) bad.push(ref + ' (resolves to ' + r.book + ')');
+  }
+  return bad;
+}
 
 db.auth.onAuthStateChange(async (_e, session) => {
   const staff = session ? await isStaff() : false;
@@ -253,6 +389,7 @@ async function generate(){
     }).select().single();
     if (sErr) throw sErr;
     sermonId = sermon.id;
+    setEditMode(false);
     await runGeneration(transcript, lect ? dateVal : undefined, null, 'workStatus');
   } catch (e) {
     show('workStatus', e.message || String(e), false);
@@ -284,6 +421,9 @@ async function runGeneration(transcript, lectionary_date, feedback, statusId){
   const withAnchors = (ms || []).map((m, i) => ({ ...m, anchor: (data.anchors || [])[i] || '' }));
   lastPoints = data.points || [];
   renderMissions(withAnchors);
+  const { data: srm } = await db.from('sermons').select('title, scripture, summary').eq('id', sermonId).single();
+  fillMessageFields(srm);
+  checkScripture();
   document.getElementById('reviewCard').classList.remove('hidden');
   document.getElementById('upgradeNote').style.display = data.plan_is_free ? 'block' : 'none';
   const left = Math.max((data.redrafts_allowed || 0) - (data.redrafts_used || 0) + 1, 0);
@@ -307,10 +447,55 @@ function renderMissions(ms){
     '</div>').join('');
 }
 
+function fillMessageFields(s){
+  document.getElementById('rTitle').value = (s && s.title) || '';
+  document.getElementById('rScripture').value = (s && s.scripture) || '';
+  document.getElementById('rSummary').value = (s && s.summary) || '';
+}
+
+function setEditMode(live){
+  editingLive = live;
+  document.getElementById('publishBtn').textContent = live
+    ? 'Save corrections'
+    : 'Save edits and publish to congregation';
+  document.getElementById('messageHint').textContent = live
+    ? "Correcting a message members can already see. Saving updates it in place — no republishing, and no one loses a checkmark."
+    : 'Click any field to edit. Discoverly checks the scripture reference for you before it reaches anyone.';
+}
+
+/* ---------- reopen an existing sermon ---------- */
+async function editSermon(id){
+  const { data: s, error } = await db.from('sermons').select('*').eq('id', id).single();
+  if (error) return show('manageStatus', error.message, false);
+  const { data: ms } = await db.from('missions').select('*').eq('sermon_id', id).order('position');
+  sermonId = id;
+  lastPoints = [];
+  fillMessageFields(s);
+  renderMissions(ms || []);
+  setEditMode(s.status === 'published');
+  document.getElementById('reviewCard').classList.remove('hidden');
+  document.getElementById('feedback').value = '';
+  show('pubStatus', 'Editing "' + (s.title || 'this message') + '".', true);
+  checkScripture();
+  document.getElementById('reviewCard').scrollIntoView({ behavior: 'smooth' });
+}
+
 async function publish(){
   try {
     const cards = [...document.querySelectorAll('.mission')];
     if (!cards.length) return show('pubStatus', 'Keep at least one mission.', false);
+
+    const refOk = await checkScripture();
+    const badRefs = await checkMissionRefs();
+    if (!refOk || badRefs.length) {
+      const parts = [];
+      if (!refOk) parts.push('the scripture reference above');
+      if (badRefs.length) parts.push('in the missions: ' + badRefs.join('; '));
+      const msg = 'Discoverly could not verify ' + parts.join(', and ') +
+        '.\n\nYou can save anyway — but a wrong reference is the fastest way to lose a member\'s trust.\n\nSave regardless?';
+      if (!confirm(msg)) return show('pubStatus', 'Nothing saved — fix the reference and try again.', false);
+    }
+
     const keptIds = [];
     for (const c of cards) {
       const id = c.dataset.id;
@@ -326,9 +511,17 @@ async function publish(){
     const { data: all } = await db.from('missions').select('id').eq('sermon_id', sermonId);
     const removed = (all || []).filter(m => !keptIds.includes(m.id)).map(m => m.id);
     if (removed.length) await db.from('missions').delete().in('id', removed);
-    const { error: pErr } = await db.from('sermons').update({ status: 'published' }).eq('id', sermonId);
+    const { error: pErr } = await db.from('sermons').update({
+      title: document.getElementById('rTitle').value.trim() || 'Untitled',
+      scripture: document.getElementById('rScripture').value.trim() || null,
+      summary: document.getElementById('rSummary').value.trim() || null,
+      status: 'published',
+    }).eq('id', sermonId);
     if (pErr) throw pErr;
-    show('pubStatus', 'Published! Members will see the missions now.', true);
+    show('pubStatus', editingLive
+      ? 'Corrected. Members see the update next time they open the app.'
+      : 'Published! Members will see the missions now.', true);
+    setEditMode(true);
     loadSermons();
   } catch (e) {
     show('pubStatus', e.message || String(e), false);
@@ -402,6 +595,7 @@ async function loadSermons(){
           '<div class="s-info"><div class="s-title">' + esc(s.title) + '</div>' +
           '<div class="s-meta">' + s.preached_on + ' · ' + n + ' mission' + (n === 1 ? '' : 's') + '</div></div>' +
           '<span class="pill ' + (pub ? 'pub' : 'draft') + '">' + (pub ? 'LIVE' : 'DRAFT') + '</span>' +
+          '<button class="sm-btn" onclick="editSermon(\'' + s.id + '\')">Edit</button>' +
           '<button class="sm-btn" onclick="toggleStatus(\'' + s.id + '\', \'' + s.status + '\')">' + (pub ? 'Unpublish' : 'Publish') + '</button>' +
           '<button class="sm-btn danger" onclick="delSermon(\'' + s.id + '\', \'' + esc(s.title).replace(/'/g, '') + '\')">Delete</button>' +
         '</div>';
