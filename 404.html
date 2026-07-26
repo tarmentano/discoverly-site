@@ -1,0 +1,31 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>Discoverly</title>
+<script>
+  // Deep links into the web app (e.g. /app/week) hit this page on GitHub Pages.
+  // Forward them into the app shell; the router takes over from there.
+  (function () {
+    var p = location.pathname;
+    if (p.indexOf("/app/") === 0 && p !== "/app/") {
+      location.replace("/app/" + location.search + location.hash);
+    }
+  })();
+</script>
+<style>
+  body{margin:0;font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;background:#274A3D;color:#F2EFE6;display:flex;min-height:100vh;align-items:center;justify-content:center;text-align:center;padding:24px}
+  .logo{font-family:Georgia,serif;font-size:32px;font-weight:600}
+  .logo span{color:#E8906B}
+  p{color:#C4D2C8;font-size:16px;margin-top:12px}
+  a{color:#E8906B;font-weight:600}
+</style>
+</head>
+<body>
+  <div>
+    <div class="logo">discoverly<span>.</span></div>
+    <p>That page wandered off the trail.</p>
+    <p><a href="/">Back to discoverly.com</a> &nbsp;·&nbsp; <a href="/app/">Open the app</a></p>
+  </div>
+</body>
+</html>
