@@ -3,6 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
+<link rel="icon" type="image/png" href="/favicon.png">
 <title>Discoverly Admin</title>
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <script src="https://cdn.jsdelivr.net/gh/davidshimjs/qrcodejs@master/qrcode.min.js"></script>
@@ -17,15 +18,17 @@
   .sub{color:var(--muted);font-size:13px;margin:4px 0 18px}
   .card{background:var(--card);border:1px solid var(--line);border-radius:14px;padding:18px;margin-bottom:14px}
   label{display:block;font-size:12px;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:.06em;margin:10px 0 6px}
-  input,textarea{width:100%;border:1px solid var(--line);border-radius:10px;padding:10px 12px;font-size:14px;background:#fbfcfe;color:var(--ink)}
-  textarea{min-height:160px;resize:vertical;line-height:1.5}
-  .mode-row{display:flex;gap:16px;margin:4px 0 8px}
+  input,textarea,select{width:100%;border:1px solid var(--line);border-radius:10px;padding:10px 12px;font-size:14px;background:#fbfcfe;color:var(--ink)}
+  textarea{min-height:150px;resize:vertical;line-height:1.5}
+  textarea.small{min-height:70px}
+  .mode-row{display:flex;gap:16px;margin:4px 0 8px;flex-wrap:wrap}
   .mode-row label{display:flex;align-items:center;gap:6px;font-size:13.5px;text-transform:none;letter-spacing:0;margin:0;font-weight:600;cursor:pointer}
   .mode-row input{width:auto}
   .note{font-size:12.5px;color:var(--muted);background:var(--pine-bg);border-radius:10px;padding:9px 12px;margin-bottom:6px;line-height:1.5;display:none}
   .btn{border:none;border-radius:999px;padding:13px 18px;font-size:14px;font-weight:600;cursor:pointer;width:100%;margin-top:14px}
   .btn.pine{background:var(--pine);color:#F2EFE6}
   .btn.coral{background:var(--coral);color:#FDFBF7}
+  .btn.ghost{background:#fff;color:var(--ink);border:1.5px solid var(--line)}
   .btn:disabled{opacity:.5}
   .status{font-size:13px;padding:10px 14px;border-radius:10px;margin-top:10px;display:none}
   .status.err{display:block;background:#fdecef;color:var(--rose)}
@@ -34,12 +37,13 @@
   .m-title{font-size:14px;font-weight:700;padding:2px 4px;border-radius:6px}
   .m-desc{font-size:12.5px;color:var(--muted);margin-top:3px;line-height:1.45;padding:2px 4px;border-radius:6px}
   .m-title:focus,.m-desc:focus{outline:2px solid var(--coral);background:#fff}
+  .m-anchor{font-size:11.5px;color:var(--muted);margin-top:6px;font-style:italic}
   .m-row{display:flex;align-items:center;gap:10px;margin-top:8px;font-size:12px;color:var(--muted)}
   .m-cat{font-size:11px;font-weight:700;color:var(--pine);background:var(--pine-bg);padding:4px 11px;border-radius:999px}
   .m-del{margin-left:auto;border:1px solid var(--line);background:#fff;color:var(--rose);border-radius:8px;font-size:11.5px;font-weight:700;padding:5px 10px;cursor:pointer}
-  .edit-hint{font-size:11.5px;color:var(--muted);margin-bottom:10px}
+  .edit-hint{font-size:11.5px;color:var(--muted);margin-bottom:10px;line-height:1.5}
+  .points{background:var(--pine-bg);padding:10px 13px;border-radius:10px;margin-bottom:12px;font-size:12.5px;color:var(--muted);line-height:1.6}
   .hidden{display:none}
-  /* manage sermons */
   .s-row{display:flex;align-items:center;gap:10px;border:1px solid var(--line);border-radius:12px;padding:11px 14px;margin-bottom:8px;flex-wrap:wrap}
   .s-info{flex:1;min-width:180px}
   .s-title{font-size:14px;font-weight:700}
@@ -50,6 +54,7 @@
   .sm-btn{border:1px solid var(--line);background:#fff;border-radius:8px;font-size:11.5px;font-weight:700;padding:6px 11px;cursor:pointer}
   .sm-btn.danger{color:var(--rose)}
   .refresh{background:none;border:none;color:var(--coral);font-weight:700;font-size:12.5px;cursor:pointer;float:right}
+  .upgrade{background:var(--gold-bg);color:var(--gold);border-radius:10px;padding:10px 13px;font-size:12.5px;line-height:1.5;margin-top:10px;display:none}
 </style>
 </head>
 <body>
@@ -71,22 +76,27 @@
   <div class="card hidden" id="workCard">
     <label>Source</label>
     <div class="mode-row">
-      <label><input type="radio" name="mode" value="transcript" checked onchange="modeChange()"> From transcript</label>
+      <label><input type="radio" name="mode" value="transcript" checked onchange="modeChange()"> From the message</label>
       <label><input type="radio" name="mode" value="lectionary" onchange="modeChange()"> ⛪ From Sunday lectionary (Catholic)</label>
     </div>
     <div class="note" id="lectNote">Missions come from the Mass readings for the chosen Sunday — Gospel first. Pasting the homily below is optional but makes them richer. <b>Verify the readings against your missalette before publishing.</b></div>
 
     <label>Sermon title <span style="text-transform:none;letter-spacing:0;font-weight:400">(Discoverly fills if blank)</span></label>
-    <input id="title" placeholder="e.g. Over-Desire and The Way Back">
+    <input id="title" placeholder="e.g. The Freedom of Self-Forgetfulness">
     <label>Sunday date</label>
     <input id="date" type="date">
-    <label>Transcript <span id="optTag" style="text-transform:none;letter-spacing:0;font-weight:400"></span></label>
-    <textarea id="transcript" placeholder="Paste the sermon or homily transcript here"></textarea>
-    <label>Or fetch it from YouTube / Vimeo</label>
+    <div class="edit-hint">Prep-ahead tip: publish with a future Sunday's date and the missions stay hidden until that morning, then appear automatically. Paste your notes Thursday; launch happens Sunday by itself.</div>
+
+    <label>The message — transcript, manuscript, or sermon notes <span id="optTag" style="text-transform:none;letter-spacing:0;font-weight:400"></span></label>
+    <textarea id="transcript" placeholder="Paste the transcript — or your sermon notes before you even preach"></textarea>
+    <label>Or upload a transcript file</label>
+    <input type="file" id="tfile" accept=".txt,.vtt,.srt,.text" style="padding:8px">
+    <label>Or fetch it from YouTube / Vimeo <span style="text-transform:none;letter-spacing:0;font-weight:400">(works for some videos — if it can't, download the transcript from the platform and upload it above)</span></label>
     <div style="display:flex;gap:8px">
       <input id="ytUrl" placeholder="Paste your service's YouTube or Vimeo link" style="flex:1">
       <button class="sm-btn" style="white-space:nowrap" onclick="fetchYT()">Fetch transcript</button>
     </div>
+
     <button class="btn pine" id="genBtn" onclick="generate()">Generate Missions from the Message</button>
     <div class="status" id="workStatus"></div>
   </div>
@@ -95,8 +105,26 @@
     <label>Draft missions</label>
     <div class="edit-hint">Click any title or description to edit it. Remove what doesn't fit. Your edits save when you publish.</div>
     <div id="missionList"></div>
+
+    <label id="fbLabel">Ask Discoverly for changes</label>
+    <textarea id="feedback" class="small" placeholder="e.g. Tie mission 3 to the story about the prodigal's older brother. Make them gentler — our congregation is mostly retirees. Less doing, more grace."></textarea>
+    <div class="mode-row" style="margin-top:10px">
+      <button class="btn coral" style="flex:1;margin:0" onclick="regenerate(true)">Redraft with my feedback</button>
+      <button class="btn ghost" style="flex:1;margin:0" onclick="regenerate(false)">Plain redraw</button>
+    </div>
+    <div class="edit-hint" id="redraftCount" style="margin-top:8px"></div>
+    <div class="upgrade" id="upgradeNote">Feedback-guided redrafts are part of a paid church plan — a plain redraw is always available, and you can edit every word by hand.</div>
+
     <button class="btn coral" onclick="publish()">Save edits and publish to congregation</button>
     <div class="status" id="pubStatus"></div>
+  </div>
+
+  <div class="card hidden" id="styleCard">
+    <label>Standing guidance for every message</label>
+    <div class="edit-hint">Applied to every future draft, so you don't repeat yourself. e.g. "We're a rural congregation — keep missions plain-spoken and low-cost." "Always include one mission a homebound member could do."</div>
+    <textarea id="missionStyle" class="small" placeholder="Optional — how should missions sound for your church?"></textarea>
+    <button class="btn ghost" onclick="saveStyle()">Save guidance</button>
+    <div class="status" id="styleStatus"></div>
   </div>
 
   <div class="card hidden" id="inviteCard">
@@ -132,17 +160,19 @@ const SUPABASE_URL = "https://nsrczpqsddvfsazwyhao.supabase.co";
 const SUPABASE_ANON_KEY = "sb_publishable_h-Z5uroq5ob8Ctr3dp_0eA_b7d5jzAJ";
 const db = supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
 let sermonId = null;
+let lastPoints = [];
 
 db.auth.onAuthStateChange(async (_e, session) => {
   const staff = session ? await isStaff() : false;
   document.getElementById('authCard').classList.toggle('hidden', !!session);
-  ['workCard','reviewCard','manageCard','inviteCard','staffCard'].forEach(id => {
+  ['workCard','styleCard','inviteCard','staffCard','manageCard'].forEach(id => {
     const el = document.getElementById(id);
     if (el) el.classList.toggle('hidden', !staff);
   });
+  if (!staff) document.getElementById('reviewCard').classList.add('hidden');
   const notice = document.getElementById('memberNotice');
   if (notice) notice.style.display = (session && !staff) ? 'block' : 'none';
-  if (staff) { loadSermons(); loadInvite(); loadStaff(); }
+  if (staff) { loadSermons(); loadInvite(); loadStaff(); loadStyle(); }
 });
 
 async function isStaff(){
@@ -150,6 +180,12 @@ async function isStaff(){
   if (!uid) return false;
   const { data } = await db.from('profiles').select('role').eq('id', uid).single();
   return data?.role === 'staff';
+}
+
+async function myChurchId(){
+  const uid = (await db.auth.getUser()).data.user.id;
+  const { data } = await db.from('profiles').select('church_id').eq('id', uid).single();
+  return data.church_id;
 }
 
 function modeChange(){
@@ -164,7 +200,41 @@ async function signIn(){
   show('authStatus', error ? error.message : 'Check your email for the sign-in link', !error);
 }
 
-/* ---------- generate & publish ---------- */
+/* ---------- transcript inputs ---------- */
+document.addEventListener('DOMContentLoaded', () => {
+  const tf = document.getElementById('tfile');
+  if (tf) tf.onchange = () => {
+    const f = tf.files[0];
+    if (!f) return;
+    const r = new FileReader();
+    r.onload = () => {
+      const clean = String(r.result)
+        .replace(/^WEBVTT.*$/m, '')
+        .replace(/^\d+\s*$/gm, '')
+        .replace(/\d{2}:\d{2}(?::\d{2})?[.,]\d{3}\s*-->.*$/gm, '')
+        .replace(/<[^>]+>/g, '')
+        .replace(/\s+/g, ' ')
+        .trim();
+      document.getElementById('transcript').value = clean;
+      show('workStatus', 'Loaded ' + f.name + ' (' + Math.round(clean.length / 1000) + 'k characters) — review, then generate.', true);
+    };
+    r.readAsText(f);
+  };
+});
+
+async function fetchYT(){
+  const url = document.getElementById('ytUrl').value.trim();
+  if (!url) return show('workStatus', 'Paste a YouTube or Vimeo link first.', false);
+  show('workStatus', 'Listening to the message…', true);
+  const { data, error } = await db.functions.invoke('youtube-transcript', { body: { url } });
+  if (error) { let m = error.message; try { const b = await error.context.json(); m = b.error || m; } catch(_){} return show('workStatus', m, false); }
+  if (data.error) return show('workStatus', data.error, false);
+  document.getElementById('transcript').value = data.transcript;
+  if (data.title && !document.getElementById('title').value) document.getElementById('title').value = data.title;
+  show('workStatus', 'Transcript fetched (' + Math.round(data.transcript.length / 1000) + 'k characters) — review, then generate.', true);
+}
+
+/* ---------- generate & redraft ---------- */
 async function generate(){
   const btn = document.getElementById('genBtn');
   const transcript = document.getElementById('transcript').value.trim();
@@ -173,45 +243,66 @@ async function generate(){
   if (lect && !dateVal) return show('workStatus', 'Pick the Sunday date for lectionary mode.', false);
   if (!lect && transcript.length < 200) return show('workStatus', 'Paste at least a few paragraphs.', false);
   btn.disabled = true;
-  show('workStatus', lect ? 'Finding the readings, drafting missions...' : 'Reading the sermon, drafting missions...', true);
+  show('workStatus', lect ? 'Finding the readings, drafting missions…' : 'Reading the message, drafting missions…', true);
   try {
-    const uid = (await db.auth.getUser()).data.user.id;
-    const { data: prof } = await db.from('profiles').select('church_id').eq('id', uid).single();
+    const church_id = await myChurchId();
     const { data: sermon, error: sErr } = await db.from('sermons').insert({
-      church_id: prof.church_id,
+      church_id,
       title: document.getElementById('title').value.trim() || 'Untitled',
       preached_on: dateVal || new Date().toISOString().slice(0,10),
     }).select().single();
     if (sErr) throw sErr;
     sermonId = sermon.id;
-
-    const { data, error } = await db.functions.invoke('process-sermon', {
-      body: { sermon_id: sermonId, transcript, lectionary_date: lect ? dateVal : undefined },
-    });
-    if (error) { let msg = error.message; try { const b = await error.context.json(); msg = b.error || msg; } catch(_){} throw new Error(msg); }
-    if (data.error) throw new Error(data.error);
-
-    const { data: ms } = await db.from('missions').select('*').eq('sermon_id', sermonId).order('position');
-    const withAnchors = (ms || []).map((m, i) => ({ ...m, anchor: (data.anchors || [])[i] || '' }));
-    renderMissions(withAnchors);
-    if ((data.points || []).length) {
-      document.getElementById('missionList').insertAdjacentHTML('afterbegin',
-        '<div class="edit-hint" style="background:var(--pine-bg);padding:10px 13px;border-radius:10px;margin-bottom:12px"><b>Main points Discoverly heard:</b><br>' +
-        data.points.map(pt => '• ' + esc(pt)).join('<br>') + '</div>');
-    }
-    document.getElementById('reviewCard').classList.remove('hidden');
-    show('workStatus', 'Drafted "' + (data.title || 'sermon') + '" — review and edit below, then publish.', true);
+    await runGeneration(transcript, lect ? dateVal : undefined, null, 'workStatus');
   } catch (e) {
     show('workStatus', e.message || String(e), false);
   } finally { btn.disabled = false; }
 }
 
+async function regenerate(withFeedback){
+  if (!sermonId) return show('pubStatus', 'Generate a draft first.', false);
+  const fb = document.getElementById('feedback').value.trim();
+  if (withFeedback && !fb) return show('pubStatus', 'Write what you would like changed first.', false);
+  const transcript = document.getElementById('transcript').value.trim();
+  const lect = document.querySelector('input[name=mode]:checked').value === 'lectionary';
+  show('pubStatus', withFeedback ? 'Redrafting with your feedback…' : 'Redrawing…', true);
+  await runGeneration(transcript, lect ? document.getElementById('date').value : undefined, withFeedback ? fb : null, 'pubStatus');
+}
+
+async function runGeneration(transcript, lectionary_date, feedback, statusId){
+  const { data, error } = await db.functions.invoke('process-sermon', {
+    body: { sermon_id: sermonId, transcript, lectionary_date, feedback },
+  });
+  if (error) { let m = error.message; try { const b = await error.context.json(); m = b.error || m; } catch(_){} return show(statusId, m, false); }
+  if (data.error) {
+    show(statusId, data.error, false);
+    if (/paid church plan/i.test(data.error)) document.getElementById('upgradeNote').style.display = 'block';
+    return;
+  }
+
+  const { data: ms } = await db.from('missions').select('*').eq('sermon_id', sermonId).order('position');
+  const withAnchors = (ms || []).map((m, i) => ({ ...m, anchor: (data.anchors || [])[i] || '' }));
+  lastPoints = data.points || [];
+  renderMissions(withAnchors);
+  document.getElementById('reviewCard').classList.remove('hidden');
+  document.getElementById('upgradeNote').style.display = data.plan_is_free ? 'block' : 'none';
+  const left = Math.max((data.redrafts_allowed || 0) - (data.redrafts_used || 0) + 1, 0);
+  document.getElementById('redraftCount').textContent =
+    left > 0 ? left + ' redraft' + (left === 1 ? '' : 's') + ' left for this message.' : 'No redrafts left — edit by hand below.';
+  show(statusId, 'Drafted "' + (data.title || 'this message') + '" — review and edit below, then publish.', true);
+  document.getElementById('reviewCard').scrollIntoView({ behavior: 'smooth' });
+}
+
 function renderMissions(ms){
-  document.getElementById('missionList').innerHTML = ms.map(m =>
+  const pts = lastPoints.length
+    ? '<div class="points"><b>Main points Discoverly heard:</b><br>' + lastPoints.map(p => '• ' + esc(p)).join('<br>') + '</div>'
+    : '';
+  document.getElementById('missionList').innerHTML = pts + ms.map(m =>
     '<div class="mission" data-id="' + m.id + '">' +
       '<div class="m-title" contenteditable="true">' + esc(m.emoji) + ' ' + esc(m.title) + '</div>' +
       '<div class="m-desc" contenteditable="true">' + esc(m.description) + '</div>' +
-      '<div style="font-size:11.5px;color:var(--muted);margin-top:6px;font-style:italic">' + (m.anchor ? 'From: ' + esc(m.anchor) : '') + '</div>' + '<div class="m-row"><span class="m-cat">' + esc(m.category) + '</span>' +
+      (m.anchor ? '<div class="m-anchor">From: ' + esc(m.anchor) + '</div>' : '') +
+      '<div class="m-row"><span class="m-cat">' + esc(m.category) + '</span>' +
       '<button class="m-del" onclick="this.closest(\'.mission\').remove()">Remove</button></div>' +
     '</div>').join('');
 }
@@ -225,9 +316,9 @@ async function publish(){
       const id = c.dataset.id;
       keptIds.push(id);
       const raw = c.querySelector('.m-title').innerText.trim();
-      const emojiMatch = raw.match(/^(\p{Extended_Pictographic}\uFE0F?)\s*/u);
+      const emojiMatch = raw.match(/^(\p{Extended_Pictographic}️?)\s*/u);
       const emoji = emojiMatch ? emojiMatch[1] : '⭐';
-      const title = raw.replace(/^(\p{Extended_Pictographic}\uFE0F?)\s*/u, '').trim().slice(0, 80);
+      const title = raw.replace(/^(\p{Extended_Pictographic}️?)\s*/u, '').trim().slice(0, 80);
       const description = c.querySelector('.m-desc').innerText.trim().slice(0, 400);
       const { error } = await db.from('missions').update({ emoji, title, description }).eq('id', id);
       if (error) throw error;
@@ -242,6 +333,56 @@ async function publish(){
   } catch (e) {
     show('pubStatus', e.message || String(e), false);
   }
+}
+
+/* ---------- standing guidance ---------- */
+async function loadStyle(){
+  const cid = await myChurchId();
+  const { data } = await db.from('churches').select('mission_style').eq('id', cid).single();
+  if (data && data.mission_style) document.getElementById('missionStyle').value = data.mission_style;
+}
+async function saveStyle(){
+  const cid = await myChurchId();
+  const { error } = await db.from('churches')
+    .update({ mission_style: document.getElementById('missionStyle').value.trim() || null })
+    .eq('id', cid);
+  show('styleStatus', error ? error.message : 'Saved — Discoverly will keep this in mind.', !error);
+}
+
+/* ---------- invite ---------- */
+async function loadInvite(){
+  const uid = (await db.auth.getUser()).data.user.id;
+  const { data: prof } = await db.from('profiles').select('church_id, churches(code, name)').eq('id', uid).single();
+  const code = prof && prof.churches ? prof.churches.code : null;
+  if (!code) return;
+  const url = 'https://discoverly.com/join/?c=' + encodeURIComponent(code);
+  document.getElementById('churchCode').textContent = code;
+  document.getElementById('joinUrl').textContent = url;
+  document.getElementById('qrBox').innerHTML = '';
+  new QRCode(document.getElementById('qrBox'), { text: url, width: 180, height: 180, colorDark: '#274A3D' });
+}
+
+/* ---------- staff ---------- */
+async function loadStaff(){
+  const { data, error } = await db.from('profiles')
+    .select('id, display_name, avatar, role')
+    .order('role', { ascending: false })
+    .order('display_name');
+  if (error) return show('staffStatus', error.message, false);
+  const me = (await db.auth.getUser()).data.user.id;
+  document.getElementById('staffList').innerHTML = (data || []).map(p =>
+    '<div class="s-row"><div class="s-info">' +
+      '<div class="s-title">' + esc(p.avatar) + ' ' + esc(p.display_name) + (p.id === me ? ' (you)' : '') + '</div></div>' +
+      '<span class="pill ' + (p.role === 'staff' ? 'pub' : 'draft') + '">' + p.role.toUpperCase() + '</span>' +
+      (p.role === 'staff'
+        ? '<button class="sm-btn" onclick="setRole(\'' + p.id + '\', \'member\')">Make member</button>'
+        : '<button class="sm-btn" onclick="setRole(\'' + p.id + '\', \'staff\')">Make staff</button>') +
+    '</div>').join('');
+}
+async function setRole(target, role){
+  const { error } = await db.rpc('set_member_role', { target, new_role: role });
+  show('staffStatus', error ? error.message : 'Updated.', !error);
+  loadStaff();
 }
 
 /* ---------- manage sermons ---------- */
@@ -266,43 +407,17 @@ async function loadSermons(){
         '</div>';
       }).join('');
 }
-
 async function toggleStatus(id, current){
   const next = current === 'published' ? 'draft' : 'published';
   const { error } = await db.from('sermons').update({ status: next }).eq('id', id);
   show('manageStatus', error ? error.message : (next === 'published' ? 'Published.' : 'Unpublished — hidden from members.'), !error);
   loadSermons();
 }
-
 async function delSermon(id, title){
-  if (!confirm('Delete "' + title + '" and its missions? Members\' journal reflections for it will also be removed. This cannot be undone.')) return;
+  if (!confirm('Delete "' + title + '" and its missions? Members\' reflections for it will also be removed. This cannot be undone.')) return;
   const { error } = await db.from('sermons').delete().eq('id', id);
   show('manageStatus', error ? error.message : 'Deleted.', !error);
   loadSermons();
-}
-
-async function loadInvite(){
-  const uid = (await db.auth.getUser()).data.user.id;
-  const { data: prof } = await db.from('profiles').select('church_id, churches(code, name)').eq('id', uid).single();
-  const code = prof && prof.churches ? prof.churches.code : null;
-  if (!code) return;
-  const url = 'https://discoverly.com/join/?c=' + encodeURIComponent(code);
-  document.getElementById('churchCode').textContent = code;
-  document.getElementById('joinUrl').textContent = url;
-  document.getElementById('qrBox').innerHTML = '';
-  new QRCode(document.getElementById('qrBox'), { text: url, width: 180, height: 180, colorDark: '#274A3D' });
-}
-
-async function fetchYT(){
-  const url = document.getElementById('ytUrl').value.trim();
-  if (!url) return show('workStatus', 'Paste a YouTube or Vimeo link first.', false);
-  show('workStatus', 'Listening to the message…', true);
-  const { data, error } = await db.functions.invoke('youtube-transcript', { body: { url } });
-  if (error) { let m = error.message; try { const b = await error.context.json(); m = b.error || m; } catch(_){} return show('workStatus', m, false); }
-  if (data.error) return show('workStatus', data.error, false);
-  document.getElementById('transcript').value = data.transcript;
-  if (data.title && !document.getElementById('title').value) document.getElementById('title').value = data.title;
-  show('workStatus', 'Transcript fetched (' + Math.round(data.transcript.length / 1000) + 'k characters) — review, then generate.', true);
 }
 
 function show(id, msg, ok){ const el = document.getElementById(id); el.textContent = msg; el.className = 'status ' + (ok ? 'ok' : 'err'); }
