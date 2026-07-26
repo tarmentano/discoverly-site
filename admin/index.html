@@ -63,6 +63,11 @@
     <div class="status" id="authStatus"></div>
   </div>
 
+  <div class="card" id="memberNotice" style="display:none">
+    <label>You're signed in as a member</label>
+    <div class="edit-hint">This console is for church staff. Head to <a href="/app/" style="color:var(--coral);font-weight:700">the Discoverly app</a> for your weekly missions. If you should have staff access, ask someone on your church's team to grant it.</div>
+  </div>
+
   <div class="card hidden" id="workCard">
     <label>Source</label>
     <div class="mode-row">
@@ -128,14 +133,24 @@ const SUPABASE_ANON_KEY = "sb_publishable_h-Z5uroq5ob8Ctr3dp_0eA_b7d5jzAJ";
 const db = supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
 let sermonId = null;
 
-db.auth.onAuthStateChange((_e, session) => {
+db.auth.onAuthStateChange(async (_e, session) => {
+  const staff = session ? await isStaff() : false;
   document.getElementById('authCard').classList.toggle('hidden', !!session);
-  document.getElementById('workCard').classList.toggle('hidden', !session);
-  document.getElementById('manageCard').classList.toggle('hidden', !session);
-  document.getElementById('inviteCard').classList.toggle('hidden', !session);
-  document.getElementById('staffCard').classList.toggle('hidden', !session);
-  if (session) { loadSermons(); loadInvite(); loadStaff(); }
+  ['workCard','reviewCard','manageCard','inviteCard','staffCard'].forEach(id => {
+    const el = document.getElementById(id);
+    if (el) el.classList.toggle('hidden', !staff);
+  });
+  const notice = document.getElementById('memberNotice');
+  if (notice) notice.style.display = (session && !staff) ? 'block' : 'none';
+  if (staff) { loadSermons(); loadInvite(); loadStaff(); }
 });
+
+async function isStaff(){
+  const uid = (await db.auth.getUser()).data.user?.id;
+  if (!uid) return false;
+  const { data } = await db.from('profiles').select('role').eq('id', uid).single();
+  return data?.role === 'staff';
+}
 
 function modeChange(){
   const lect = document.querySelector('input[name=mode]:checked').value === 'lectionary';
