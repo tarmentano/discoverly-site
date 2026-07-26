@@ -77,9 +77,9 @@
     <input id="date" type="date">
     <label>Transcript <span id="optTag" style="text-transform:none;letter-spacing:0;font-weight:400"></span></label>
     <textarea id="transcript" placeholder="Paste the sermon or homily transcript here"></textarea>
-    <label>Or fetch it from YouTube</label>
+    <label>Or fetch it from YouTube / Vimeo</label>
     <div style="display:flex;gap:8px">
-      <input id="ytUrl" placeholder="Paste your service's YouTube link" style="flex:1">
+      <input id="ytUrl" placeholder="Paste your service's YouTube or Vimeo link" style="flex:1">
       <button class="sm-btn" style="white-space:nowrap" onclick="fetchYT()">Fetch transcript</button>
     </div>
     <button class="btn pine" id="genBtn" onclick="generate()">Generate Missions from the Message</button>
