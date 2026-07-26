@@ -272,6 +272,18 @@ async function loadInvite(){
   new QRCode(document.getElementById('qrBox'), { text: url, width: 180, height: 180, colorDark: '#274A3D' });
 }
 
+async function fetchYT(){
+  const url = document.getElementById('ytUrl').value.trim();
+  if (!url) return show('workStatus', 'Paste a YouTube or Vimeo link first.', false);
+  show('workStatus', 'Listening to the message…', true);
+  const { data, error } = await db.functions.invoke('youtube-transcript', { body: { url } });
+  if (error) { let m = error.message; try { const b = await error.context.json(); m = b.error || m; } catch(_){} return show('workStatus', m, false); }
+  if (data.error) return show('workStatus', data.error, false);
+  document.getElementById('transcript').value = data.transcript;
+  if (data.title && !document.getElementById('title').value) document.getElementById('title').value = data.title;
+  show('workStatus', 'Transcript fetched (' + Math.round(data.transcript.length / 1000) + 'k characters) — review, then generate.', true);
+}
+
 function show(id, msg, ok){ const el = document.getElementById(id); el.textContent = msg; el.className = 'status ' + (ok ? 'ok' : 'err'); }
 function esc(s){ return String(s ?? '').replace(/</g,'&lt;'); }
 </script>
