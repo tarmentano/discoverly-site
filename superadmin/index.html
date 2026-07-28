@@ -69,6 +69,7 @@
       <button class="active" data-f="all" onclick="setFilter('all')">All</button>
       <button data-f="paid" onclick="setFilter('paid')">Paid</button>
       <button data-f="free" onclick="setFilter('free')">Free</button>
+      <button data-f="inactive" onclick="setFilter('inactive')">Inactive 90+ days</button>
     </div>
     <div id="churchList"></div>
     <div class="status" id="churchStatus"></div>
@@ -137,9 +138,12 @@ function setFilter(f){
 }
 
 function renderChurches(){
-  const rows = allChurches.filter(c =>
-    currentFilter === 'all' ? true : currentFilter === 'free' ? c.is_free : !c.is_free
-  );
+  const rows = allChurches.filter(c => {
+    if (currentFilter === 'free') return c.is_free;
+    if (currentFilter === 'paid') return !c.is_free;
+    if (currentFilter === 'inactive') return c.inactive_90d;
+    return true;
+  });
   document.getElementById('churchList').innerHTML = rows.length === 0
     ? '<div class="empty">No churches match this filter.</div>'
     : rows.map(c => `
@@ -147,8 +151,9 @@ function renderChurches(){
         <div class="c-info">
           <div class="c-name">${esc(c.name)} <span style="color:var(--muted);font-weight:400">· ${esc(c.code)}</span>
             <span class="pill ${c.is_free ? 'gold' : 'coral'}" style="margin-left:6px">${c.is_free ? 'FREE' : c.plan.toUpperCase()}</span>
+            ${c.inactive_90d ? '<span class="pill" style="margin-left:6px;background:#fdecef;color:var(--rose)">INACTIVE 90+ DAYS</span>' : ''}
           </div>
-          <div class="c-meta">${c.tradition === 'catholic' ? '⛪ Catholic' : '✝️ Protestant'} · ${c.member_count} member${c.member_count === 1 ? '' : 's'} · ${c.sermon_count} sermon${c.sermon_count === 1 ? '' : 's'} · joined ${new Date(c.created_at).toLocaleDateString()}</div>
+          <div class="c-meta">${c.tradition === 'catholic' ? '⛪ Catholic' : '✝️ Protestant'} · ${c.member_count} member${c.member_count === 1 ? '' : 's'} · ${c.sermon_count} sermon${c.sermon_count === 1 ? '' : 's'} · joined ${new Date(c.created_at).toLocaleDateString()} · last active ${new Date(c.last_activity).toLocaleDateString()}</div>
           <div class="staff-line">${
             c.staff && c.staff.length
               ? c.staff.map(s => `${esc(s.display_name)}: <a href="mailto:${esc(s.email)}?subject=${encodeURIComponent('Discoverly — ' + c.name)}">${esc(s.email)}</a>`).join(' · ')
@@ -156,8 +161,23 @@ function renderChurches(){
           }</div>
         </div>
         <button class="btn ghost" onclick="loadMissions('${c.id}', '${esc(c.name).replace(/'/g, "\\'")}')">View missions</button>
+        <button class="btn ghost" style="color:var(--rose);border-color:var(--rose)" onclick="deleteChurch('${c.id}', '${esc(c.name).replace(/'/g, "\\'")}', ${c.member_count})">Delete</button>
       </div>
     `).join('');
+}
+
+async function deleteChurch(churchId, churchName, memberCount){
+  const warning = `Delete "${churchName}" permanently?\n\nThis removes the church, every sermon and mission, and all ${memberCount} member account${memberCount === 1 ? '' : 's'} — not just their church membership, their entire Discoverly login. This cannot be undone.\n\nType-checked: are you sure?`;
+  if (!confirm(warning)) return;
+  try {
+    const data = await callSuperAdmin({ action: 'delete_church', church_id: churchId });
+    if (!data) return;
+    allChurches = allChurches.filter(c => c.id !== churchId);
+    renderChurches();
+    show('churchStatus', `Deleted "${data.deleted}".`, true);
+  } catch (e) {
+    show('churchStatus', e.message || String(e), false);
+  }
 }
 
 async function loadMissions(churchId, churchName){
