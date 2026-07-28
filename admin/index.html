@@ -392,7 +392,13 @@ async function generate(){
     if (sErr) throw sErr;
     sermonId = sermon.id;
     setEditMode(false);
-    await runGeneration(transcript, lect ? dateVal : undefined, null, 'workStatus');
+    const ok = await runGeneration(transcript, lect ? dateVal : undefined, null, 'workStatus');
+    if (!ok) {
+      // First draft failed (trial limit, API error, etc.) — remove the empty sermon row
+      // rather than leaving an "Untitled" orphan with no missions in Manage sermons.
+      await db.from('sermons').delete().eq('id', sermon.id);
+      sermonId = null;
+    }
   } catch (e) {
     show('workStatus', e.message || String(e), false);
   } finally { btn.disabled = false; }
@@ -412,12 +418,12 @@ async function runGeneration(transcript, lectionary_date, feedback, statusId){
   const { data, error } = await db.functions.invoke('process-sermon', {
     body: { sermon_id: sermonId, transcript, lectionary_date, feedback },
   });
-  if (error) { let m = error.message; try { const b = await error.context.json(); m = b.error || m; } catch(_){} return show(statusId, m, false); }
+  if (error) { let m = error.message; try { const b = await error.context.json(); m = b.error || m; } catch(_){} show(statusId, m, false); return false; }
   if (data.error) {
     show(statusId, data.error, false);
     if (/paid church plan/i.test(data.error)) document.getElementById('upgradeNote').style.display = 'block';
     if (data.trial_ended) document.getElementById('trialEndedNote').style.display = 'block';
-    return;
+    return false;
   }
 
   const { data: ms } = await db.from('missions').select('*').eq('sermon_id', sermonId).order('position');
@@ -434,6 +440,7 @@ async function runGeneration(transcript, lectionary_date, feedback, statusId){
     left > 0 ? left + ' redraft' + (left === 1 ? '' : 's') + ' left for this message.' : 'No redrafts left — edit by hand below.';
   show(statusId, 'Drafted "' + (data.title || 'this message') + '" — review and edit below, then publish.', true);
   document.getElementById('reviewCard').scrollIntoView({ behavior: 'smooth' });
+  return true;
 }
 
 function renderMissions(ms){
