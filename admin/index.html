@@ -40,7 +40,6 @@
   .m-anchor{font-size:11.5px;color:var(--muted);margin-top:6px;font-style:italic}
   .m-row{display:flex;align-items:center;gap:10px;margin-top:8px;font-size:12px;color:var(--muted)}
   .m-cat{font-size:11px;font-weight:700;color:var(--pine);background:var(--pine-bg);padding:4px 11px;border-radius:999px}
-  .m-dinner{font-size:11px;font-weight:700;color:var(--muted);border:1px solid var(--line);padding:3px 10px;border-radius:999px}
   .m-del{margin-left:auto;border:1px solid var(--line);background:#fff;color:var(--rose);border-radius:8px;font-size:11.5px;font-weight:700;padding:5px 10px;cursor:pointer}
   .edit-hint{font-size:11.5px;color:var(--muted);margin-bottom:10px;line-height:1.5}
   .points{background:var(--pine-bg);padding:10px 13px;border-radius:10px;margin-bottom:12px;font-size:12.5px;color:var(--muted);line-height:1.6}
@@ -453,7 +452,6 @@ function renderMissions(ms){
       '<div class="m-desc" contenteditable="true">' + esc(m.description) + '</div>' +
       (m.anchor ? '<div class="m-anchor">From: ' + esc(m.anchor) + '</div>' : '') +
       '<div class="m-row"><span class="m-cat">' + esc(m.category) + '</span>' +
-      (m.dinner_table ? '<span class="m-dinner">🍽️ Dinner table</span>' : '') +
       '<button class="m-del" onclick="this.closest(\'.mission\').remove()">Remove</button></div>' +
     '</div>').join('');
 }
