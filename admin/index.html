@@ -190,7 +190,10 @@ const ADMIN_REF_RE = new RegExp('\\b(' + REF_ALT + ')\\.?\\s(\\d{1,3})(?::\\d{1,
 
 const REF_ALIASES = [[/^ecclesiasticus\b/i, 'Sirach'], [/^wisdom(?!\s+of\s+solomon)\b/i, 'Wisdom of Solomon']];
 function normalizeRef(ref){
-  const out = String(ref || '').trim();
+  // bible-api.com only accepts a plain ASCII hyphen in ranges — Claude (correctly, typographically)
+  // writes en dashes like "3:21–4:7", which the API silently fails to resolve. Flatten dash variants
+  // to "-" before anything else touches the reference.
+  let out = String(ref || '').trim().replace(/[‐-―−]/g, '-');
   for (const [p, c] of REF_ALIASES) if (p.test(out)) return out.replace(p, c);
   return out;
 }
