@@ -36,22 +36,29 @@
   body{background:var(--cream);color:var(--ink);font-family:var(--sans);line-height:1.65;font-size:16px;min-height:100vh;display:flex;flex-direction:column}
   ::selection{background:var(--coral-soft)}
   .wrap{max-width:1040px;margin:0 auto;padding:0 28px;width:100%}
+  @media(max-width:480px){.wrap{padding:0 16px}}
   h1,.serif{font-family:var(--serif)}
 
   /* ---------- nav ---------- */
   nav{position:sticky;top:0;z-index:100;background:rgba(250,246,240,.88);backdrop-filter:blur(14px);border-bottom:1px solid var(--line)}
   .nav-in{display:flex;align-items:center;justify-content:space-between;height:68px}
-  .logo{display:inline-flex;align-items:center;gap:9px;font-family:var(--serif);font-weight:600;font-size:21px;text-decoration:none;color:var(--ink);letter-spacing:-.01em}
+  .logo{display:inline-flex;align-items:center;gap:9px;font-family:var(--serif);font-weight:600;font-size:21px;text-decoration:none;color:var(--ink);letter-spacing:-.01em;flex-shrink:0}
   .logo img{width:30px;height:30px;border-radius:9px;display:block}
   .logo .dot{color:var(--coral)}
+  @media(max-width:480px){.logo{font-size:18px;gap:7px}.logo img{width:26px;height:26px}}
   .nav-links{display:flex;gap:14px;align-items:center;font-size:14.5px}
-  .btn{display:inline-block;background:var(--pine);color:#FDFBF7;font-weight:600;padding:12px 24px;border-radius:999px;text-decoration:none;font-size:15px;border:none;cursor:pointer;transition:all .18s;font-family:var(--sans)}
+  @media(max-width:480px){.nav-links{gap:8px}}
+  .btn{display:inline-block;white-space:nowrap;flex-shrink:0;background:var(--pine);color:#FDFBF7;font-weight:600;padding:12px 24px;border-radius:999px;text-decoration:none;font-size:15px;border:none;cursor:pointer;transition:all .18s;font-family:var(--sans)}
   .btn:hover{background:#1D3A2F;transform:translateY(-1px)}
   .btn.coral{background:var(--coral)}
   .btn.coral:hover{background:var(--coral-deep)}
   .btn.ghost{background:transparent;color:var(--ink);border:1.5px solid var(--line)}
   .btn.ghost:hover{border-color:var(--ink);background:transparent}
   .btn.small{padding:10px 20px;font-size:14px}
+  @media(max-width:480px){.btn.small{padding:9px 14px;font-size:13px}}
+  .nav-cta-full{display:inline}
+  .nav-cta-short{display:none}
+  @media(max-width:480px){.nav-cta-full{display:none}.nav-cta-short{display:inline}}
 
   /* ---------- hero ---------- */
   .hero{padding:80px 0 64px;display:grid;grid-template-columns:1.08fr .92fr;gap:48px;align-items:center}
@@ -109,7 +116,7 @@
   <a class="logo" href="/"><img src="/apple-touch-icon.png" alt="Discoverly compass mark">discoverly<span class="dot">.</span></a>
   <div class="nav-links">
     <a class="btn ghost small" href="/app/">Sign in</a>
-    <a class="btn coral small" href="/start/">Start your church free</a>
+    <a class="btn coral small" href="/start/"><span class="nav-cta-full">Start your church free</span><span class="nav-cta-short">Start free</span></a>
   </div>
 </div></nav>
 
