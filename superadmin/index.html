@@ -1,0 +1,200 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<link rel="icon" type="image/png" href="/favicon.png">
+<title>Discoverly — Super Admin</title>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<style>
+  :root{color-scheme:light;--ink:#20211C;--muted:#6E6A5E;--bg:#FAF6F0;--card:#fff;--line:#E7DFD2;
+    --coral:#D46A45;--coral-bg:#F7E3D9;--pine:#274A3D;--pine-bg:#E2EBE4;--green:#4C9A62;--green-bg:#E4F1E7;--gold:#9A742A;--gold-bg:#F4E8CE;--rose:#C73E5A}
+  *{margin:0;padding:0;box-sizing:border-box;font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif}
+  body{background:var(--bg);color:var(--ink);padding:20px;max-width:840px;margin:0 auto}
+  .brand{font-family:Georgia,serif;font-weight:600;font-size:23px}
+  .brand b{color:var(--coral)}
+  .sub{color:var(--muted);font-size:13px;margin:4px 0 18px}
+  .card{background:var(--card);border:1px solid var(--line);border-radius:14px;padding:18px;margin-bottom:14px}
+  label{display:block;font-size:12px;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:.06em;margin:10px 0 6px}
+  input{width:100%;border:1px solid var(--line);border-radius:10px;padding:10px 12px;font-size:14px;background:#fbfcfe;color:var(--ink)}
+  .btn{border:none;border-radius:999px;padding:12px 18px;font-size:14px;font-weight:600;cursor:pointer;width:100%;margin-top:14px}
+  .btn.pine{background:var(--pine);color:#F2EFE6}
+  .btn.ghost{background:#fff;color:var(--ink);border:1.5px solid var(--line);width:auto;margin:0}
+  .status{font-size:13px;padding:10px 14px;border-radius:10px;margin-top:10px;display:none}
+  .status.err{display:block;background:#fdecef;color:var(--rose)}
+  .status.ok{display:block;background:var(--green-bg);color:var(--green);font-weight:600}
+  .hidden{display:none}
+  .c-row{border:1px solid var(--line);border-radius:12px;padding:13px 15px;margin-bottom:9px;display:flex;align-items:center;gap:12px;flex-wrap:wrap}
+  .c-info{flex:1;min-width:200px}
+  .c-name{font-size:14.5px;font-weight:700}
+  .c-meta{font-size:12px;color:var(--muted);margin-top:2px}
+  .pill{font-size:10.5px;font-weight:800;padding:4px 11px;border-radius:999px;letter-spacing:.04em;background:var(--pine-bg);color:var(--pine)}
+  .pill.gold{background:var(--gold-bg);color:var(--gold)}
+  .pill.coral{background:var(--coral-bg);color:var(--coral)}
+  .filters{display:flex;gap:8px;margin-bottom:12px}
+  .filters button{border:1.5px solid var(--line);background:#fff;color:var(--muted);font-weight:700;font-size:12.5px;padding:7px 13px;border-radius:999px;cursor:pointer}
+  .filters button.active{background:var(--pine);color:#F2EFE6;border-color:var(--pine)}
+  .staff-line{font-size:12px;color:var(--muted);margin-top:6px}
+  .staff-line a{color:var(--coral);font-weight:700;text-decoration:none}
+  .sermon{border:1px solid var(--line);border-radius:12px;padding:13px 15px;margin-bottom:10px}
+  .s-title{font-size:14.5px;font-weight:700}
+  .s-meta{font-size:12px;color:var(--muted);margin-top:2px;margin-bottom:10px}
+  .mission{background:#fbfcfe;border:1px solid var(--line);border-radius:10px;padding:10px 12px;margin-bottom:7px}
+  .m-title{font-size:13.5px;font-weight:700}
+  .m-desc{font-size:12.5px;color:var(--muted);margin-top:2px;line-height:1.45}
+  .m-cat{font-size:10.5px;font-weight:700;color:var(--pine);background:var(--pine-bg);padding:3px 9px;border-radius:999px;margin-top:6px;display:inline-block}
+  .back{background:none;border:none;color:var(--coral);font-weight:700;font-size:13px;cursor:pointer;margin-bottom:12px;padding:0}
+  .empty{font-size:13px;color:var(--muted)}
+</style>
+</head>
+<body>
+  <h1><span class="brand">discoverly<b>.</b></span> <span style="font-size:15px;color:var(--muted);font-weight:600">Super Admin</span></h1>
+  <div class="sub">Every church on Discoverly, and what they've generated. You only.</div>
+
+  <div class="card" id="authCard">
+    <label>Your email</label>
+    <input id="email" type="email" placeholder="you@example.com">
+    <button class="btn pine" onclick="signIn()">Send magic link</button>
+    <div class="status" id="authStatus"></div>
+  </div>
+
+  <div class="card hidden" id="deniedCard">
+    <div class="sub" style="margin:0">Signed in, but this account isn't on the super-admin list.</div>
+  </div>
+
+  <div class="card hidden" id="churchesCard">
+    <button class="back" onclick="loadChurches()">↻ Refresh</button>
+    <label>All churches</label>
+    <div class="filters">
+      <button class="active" data-f="all" onclick="setFilter('all')">All</button>
+      <button data-f="paid" onclick="setFilter('paid')">Paid</button>
+      <button data-f="free" onclick="setFilter('free')">Free</button>
+    </div>
+    <div id="churchList"></div>
+    <div class="status" id="churchStatus"></div>
+  </div>
+
+  <div class="card hidden" id="missionsCard">
+    <button class="back" onclick="showChurches()">← Back to all churches</button>
+    <label id="missionsTitle">Sermons and missions</label>
+    <div id="sermonList"></div>
+  </div>
+
+<script>
+const SUPABASE_URL = "https://nsrczpqsddvfsazwyhao.supabase.co";
+const SUPABASE_ANON_KEY = "sb_publishable_h-Z5uroq5ob8Ctr3dp_0eA_b7d5jzAJ";
+const db = supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+
+db.auth.onAuthStateChange(async (_e, session) => {
+  document.getElementById('authCard').classList.toggle('hidden', !!session);
+  document.getElementById('deniedCard').classList.add('hidden');
+  document.getElementById('churchesCard').classList.add('hidden');
+  document.getElementById('missionsCard').classList.add('hidden');
+  if (session) loadChurches();
+});
+
+async function signIn(){
+  const email = document.getElementById('email').value.trim();
+  const { error } = await db.auth.signInWithOtp({ email, options: { emailRedirectTo: location.origin + location.pathname } });
+  show('authStatus', error ? error.message : 'Check your email for the sign-in link', !error);
+}
+
+async function callSuperAdmin(body){
+  const { data, error } = await db.functions.invoke('super-admin', { body });
+  if (error) {
+    let m = error.message;
+    try { const b = await error.context.json(); m = b.error || m; } catch(_){}
+    if (/not authorized/i.test(m)) { document.getElementById('deniedCard').classList.remove('hidden'); return null; }
+    throw new Error(m);
+  }
+  if (data.error) {
+    if (/not authorized/i.test(data.error)) { document.getElementById('deniedCard').classList.remove('hidden'); return null; }
+    throw new Error(data.error);
+  }
+  return data;
+}
+
+let allChurches = [];
+let currentFilter = 'all';
+
+async function loadChurches(){
+  try {
+    const data = await callSuperAdmin({ action: 'list_churches' });
+    if (!data) return;
+    document.getElementById('churchesCard').classList.remove('hidden');
+    document.getElementById('missionsCard').classList.add('hidden');
+    allChurches = data.churches || [];
+    renderChurches();
+  } catch (e) {
+    show('churchStatus', e.message || String(e), false);
+  }
+}
+
+function setFilter(f){
+  currentFilter = f;
+  document.querySelectorAll('.filters button').forEach(b => b.classList.toggle('active', b.dataset.f === f));
+  renderChurches();
+}
+
+function renderChurches(){
+  const rows = allChurches.filter(c =>
+    currentFilter === 'all' ? true : currentFilter === 'free' ? c.is_free : !c.is_free
+  );
+  document.getElementById('churchList').innerHTML = rows.length === 0
+    ? '<div class="empty">No churches match this filter.</div>'
+    : rows.map(c => `
+      <div class="c-row">
+        <div class="c-info">
+          <div class="c-name">${esc(c.name)} <span style="color:var(--muted);font-weight:400">· ${esc(c.code)}</span>
+            <span class="pill ${c.is_free ? 'gold' : 'coral'}" style="margin-left:6px">${c.is_free ? 'FREE' : c.plan.toUpperCase()}</span>
+          </div>
+          <div class="c-meta">${c.tradition === 'catholic' ? '⛪ Catholic' : '✝️ Protestant'} · ${c.member_count} member${c.member_count === 1 ? '' : 's'} · ${c.sermon_count} sermon${c.sermon_count === 1 ? '' : 's'} · joined ${new Date(c.created_at).toLocaleDateString()}</div>
+          <div class="staff-line">${
+            c.staff && c.staff.length
+              ? c.staff.map(s => `${esc(s.display_name)}: <a href="mailto:${esc(s.email)}?subject=${encodeURIComponent('Discoverly — ' + c.name)}">${esc(s.email)}</a>`).join(' · ')
+              : '<span class="empty">No staff email on file</span>'
+          }</div>
+        </div>
+        <button class="btn ghost" onclick="loadMissions('${c.id}', '${esc(c.name).replace(/'/g, "\\'")}')">View missions</button>
+      </div>
+    `).join('');
+}
+
+async function loadMissions(churchId, churchName){
+  try {
+    const data = await callSuperAdmin({ action: 'list_missions', church_id: churchId });
+    if (!data) return;
+    document.getElementById('churchesCard').classList.add('hidden');
+    document.getElementById('missionsCard').classList.remove('hidden');
+    document.getElementById('missionsTitle').textContent = churchName + ' — sermons and missions';
+    const sermons = data.sermons || [];
+    document.getElementById('sermonList').innerHTML = sermons.length === 0
+      ? '<div class="empty">No sermons yet.</div>'
+      : sermons.map(s => `
+        <div class="sermon">
+          <div class="s-title">${esc(s.title)} <span class="pill ${s.status === 'published' ? '' : 'gold'}" style="margin-left:6px">${s.status === 'published' ? 'LIVE' : 'DRAFT'}</span></div>
+          <div class="s-meta">${esc(s.scripture || '')} · ${s.preached_on}</div>
+          ${(s.missions || []).map(m => `
+            <div class="mission">
+              <div class="m-title">${esc(m.emoji)} ${esc(m.title)}</div>
+              <div class="m-desc">${esc(m.description)}</div>
+              <span class="m-cat">${esc(m.category)}</span>
+            </div>
+          `).join('') || '<div class="empty">No missions drafted for this sermon.</div>'}
+        </div>
+      `).join('');
+  } catch (e) {
+    show('churchStatus', e.message || String(e), false);
+  }
+}
+
+function showChurches(){
+  document.getElementById('missionsCard').classList.add('hidden');
+  document.getElementById('churchesCard').classList.remove('hidden');
+}
+
+function show(id, msg, ok){ const el = document.getElementById(id); el.textContent = msg; el.className = 'status ' + (ok ? 'ok' : 'err'); }
+function esc(s){ return String(s ?? '').replace(/</g,'&lt;'); }
+</script>
+</body>
+</html>
