@@ -27,16 +27,26 @@
     <div class="logo">discoverly<span>.</span></div>
     <h1>You're invited to walk out Sunday's message — together.</h1>
     <p>Weekly missions from your church's sermon. Free for members, always.</p>
-    <div class="code-label">YOUR CHURCH CODE</div>
-    <div class="code" id="code">------</div>
+    <div id="codeWrap">
+      <div class="code-label">YOUR CHURCH CODE</div>
+      <div class="code" id="code">------</div>
+    </div>
+    <p class="fine" id="noCode" style="display:none">This link is missing your church's invite code. Ask your church for their QR code or invite link — or open the app and enter your code there.</p>
     <a class="btn" id="getApp" href="https://discoverly.com/app/">Get the Discoverly app</a>
     <a class="btn ghost" id="openApp" href="#">Already have it? Open the app</a>
-    <p class="fine">In the app, choose "Join your church" and enter the code above.</p>
+    <p class="fine" id="howTo">In the app, choose "Join your church" and enter the code above.</p>
   </div>
 <script>
-  const c = new URLSearchParams(location.search).get('c') || '------';
-  document.getElementById('code').textContent = c.toUpperCase();
-  document.getElementById('openApp').href = 'discoverly://join?c=' + encodeURIComponent(c.toUpperCase());
+  const c = new URLSearchParams(location.search).get('c');
+  if (c) {
+    document.getElementById('code').textContent = c.toUpperCase();
+    document.getElementById('openApp').href = 'discoverly://join?c=' + encodeURIComponent(c.toUpperCase());
+  } else {
+    document.getElementById('codeWrap').style.display = 'none';
+    document.getElementById('openApp').style.display = 'none';
+    document.getElementById('howTo').style.display = 'none';
+    document.getElementById('noCode').style.display = 'block';
+  }
 </script>
 </body>
 </html>
