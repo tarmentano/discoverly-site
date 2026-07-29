@@ -60,6 +60,7 @@
 
   <div class="card hidden" id="deniedCard">
     <div class="sub" style="margin:0">Signed in, but this account isn't on the super-admin list.</div>
+    <button class="back" style="margin-top:12px" onclick="signOutDenied()">Sign out</button>
   </div>
 
   <div class="card hidden" id="churchesCard">
@@ -98,6 +99,11 @@ async function signIn(){
   const email = document.getElementById('email').value.trim();
   const { error } = await db.auth.signInWithOtp({ email, options: { emailRedirectTo: location.origin + location.pathname } });
   show('authStatus', error ? error.message : 'Check your email for the sign-in link', !error);
+}
+
+async function signOutDenied(){
+  // onAuthStateChange (above) already hides deniedCard and reveals authCard on sign-out.
+  await db.auth.signOut();
 }
 
 async function callSuperAdmin(body){
