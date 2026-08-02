@@ -247,56 +247,82 @@ async function suggestFix(ref){
   return null;
 }
 
-/* Checks the sermon scripture field. Warns, never blocks. */
+/* Checks the sermon scripture field. Warns, never blocks.
+   A sermon can cite several passages, joined with ";" or "·" (e.g. multi-text messages, or the
+   Catholic lectionary's Gospel/First Reading/Psalm/Second Reading list) — each one is checked against
+   bible-api.com separately. Sending the whole joined string as a single query always fails, since the
+   API can't resolve a compound multi-book reference in one call. Commas stay inside a single reference
+   (e.g. "Romans 8:1,18-28" is one lookup, not two). */
 async function checkScripture(){
   const el = document.getElementById('rScripture');
   const box = document.getElementById('refStatus');
-  const ref = el.value.trim();
-  if (!ref) { box.style.display = 'none'; return true; }
+  const raw = el.value.trim();
+  if (!raw) { box.style.display = 'none'; return true; }
+
+  const refs = raw.split(/\s*[;·]\s*/).map(s => s.trim()).filter(Boolean);
 
   box.style.display = 'block';
   box.className = 'status';
-  box.textContent = 'Checking the reference…';
+  box.textContent = 'Checking the reference' + (refs.length > 1 ? 's' : '') + '…';
 
-  const r = await lookupRef(ref);
-  const asked = bookOf(ref);
+  const results = await Promise.all(refs.map(async ref => {
+    const r = await lookupRef(ref);
+    const asked = bookOf(ref);
+    return { ref, r, asked, good: r.ok && (!asked || sameBook(r.book, normalizeRef(asked))) };
+  }));
 
-  if (r.ok && (!asked || sameBook(r.book, normalizeRef(asked)))) {
+  if (results.every(x => x.good)) {
     box.className = 'status ok';
-    box.textContent = 'Found — ' + r.reference + ' (' + r.count + ' verse' + (r.count === 1 ? '' : 's') + ').';
+    box.textContent = 'Found — ' + results.map(x =>
+      x.r.reference + ' (' + x.r.count + ' verse' + (x.r.count === 1 ? '' : 's') + ')').join('; ') + '.';
     return true;
   }
 
-  if (r.ok && asked) {
+  const bad = results.filter(x => !x.good);
+
+  if (bad.every(x => x.r.offline)) {
+    box.className = 'status';
+    box.textContent = "Couldn't reach the scripture service just now — the reference" +
+      (bad.length > 1 ? 's were' : ' wasn\'t') + ' checked. You can still save.';
+    return true;
+  }
+
+  const wrongBook = bad.find(x => x.r.ok && x.asked);
+  if (wrongBook) {
     box.className = 'status err';
-    box.innerHTML = 'Heads up — "' + esc(ref) + '" comes back as ' + esc(r.book) +
-      ', a different book. ' + fixBtn(guessAlias(asked) ? ref.replace(new RegExp('^' + asked, 'i'), guessAlias(asked)) : '');
+    const cand = guessAlias(wrongBook.asked) ?
+      wrongBook.ref.replace(new RegExp('^' + wrongBook.asked, 'i'), guessAlias(wrongBook.asked)) : '';
+    box.innerHTML = 'Heads up — "' + esc(wrongBook.ref) + '" comes back as ' + esc(wrongBook.r.book) +
+      ', a different book. ' + fixBtn(wrongBook.ref, cand);
     return false;
   }
 
-  if (r.offline) {
-    box.className = 'status';
-    box.textContent = "Couldn't reach the scripture service just now — the reference wasn't checked. You can still save.";
-    return true;
-  }
-
+  const notFound = bad.filter(x => !x.r.ok && !x.r.offline);
   box.className = 'status err';
-  const fix = await suggestFix(ref);
-  box.innerHTML = "We couldn't find " + esc(ref) + '. Transcripts often drop a colon. ' +
-    (fix ? fixBtn(fix) : 'Double-check the chapter and verses.');
+  const fixes = await Promise.all(notFound.map(x => suggestFix(x.ref)));
+  box.innerHTML = "We couldn't find " + notFound.map(x => esc(x.ref)).join('; ') +
+    '. Transcripts often drop a colon. ' +
+    (fixes.some(Boolean)
+      ? notFound.map((x, i) => fixes[i] ? fixBtn(x.ref, fixes[i]) : '').filter(Boolean).join(' ')
+      : 'Double-check the chapter and verses.');
   return false;
 }
 function guessAlias(book){
   for (const [p, c] of REF_ALIASES) if (p.test(book)) return c;
   return '';
 }
-function fixBtn(cand){
+function fixBtn(original, cand){
   if (!cand) return '';
   return 'Did you mean ' + esc(cand) + '? ' +
-    '<button class="sm-btn" onclick="useFix(this.dataset.r)" data-r="' + esc(cand).replace(/"/g, '&quot;') + '">Use this</button>';
+    '<button class="sm-btn" onclick="useFix(this.dataset.o, this.dataset.r)" ' +
+    'data-o="' + esc(original).replace(/"/g, '&quot;') + '" ' +
+    'data-r="' + esc(cand).replace(/"/g, '&quot;') + '">Use this</button>';
 }
-function useFix(ref){
-  document.getElementById('rScripture').value = ref;
+function useFix(original, cand){
+  const el = document.getElementById('rScripture');
+  const parts = el.value.trim().split(/\s*[;·]\s*/);
+  const idx = parts.findIndex(p => p.trim() === original.trim());
+  el.value = idx === -1 ? cand : parts.map((p, i) => i === idx ? cand : p).join('; ');
   checkScripture();
 }
 
