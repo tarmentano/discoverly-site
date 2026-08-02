@@ -109,6 +109,7 @@
     <input id="rScripture" placeholder="Scripture — e.g. 1 Corinthians 3:21-4:7" onblur="checkScripture()">
     <div class="status" id="refStatus" style="display:none"></div>
     <textarea id="rSummary" class="small" placeholder="The summary members see under the title"></textarea>
+    <input id="rMediaUrl" placeholder="Link to rewatch or listen (YouTube, Vimeo, podcast) — optional">
 
     <label>Draft missions</label>
     <div class="edit-hint">Click any title or description to edit it. Remove what doesn't fit.</div>
@@ -133,6 +134,24 @@
     <textarea id="missionStyle" class="small" placeholder="Optional — how should missions sound for your church?"></textarea>
     <button class="btn ghost" onclick="saveStyle()">Save guidance</button>
     <div class="status" id="styleStatus"></div>
+  </div>
+
+  <div class="card hidden" id="profileCard">
+    <label>Church profile</label>
+    <div class="edit-hint">Shown to your members on the My Church tab.</div>
+    <label>Logo</label>
+    <div style="display:flex;align-items:center;gap:14px;margin-bottom:6px">
+      <img id="logoPreview" src="" style="width:64px;height:64px;border-radius:14px;object-fit:cover;border:1px solid var(--line);display:none">
+      <input type="file" id="logoFile" accept="image/*" style="padding:8px">
+    </div>
+    <label>Service times</label>
+    <input id="serviceTimes" placeholder="e.g. Sundays 9:00 &amp; 11:00am">
+    <label>Address</label>
+    <input id="churchAddress" placeholder="e.g. 123 Main St, Bowling Green, KY">
+    <label>Pastor / staff contact email</label>
+    <input id="pastorContact" type="email" placeholder="e.g. pastor@yourchurch.org">
+    <button class="btn ghost" onclick="saveChurchProfile()">Save church profile</button>
+    <div class="status" id="profileStatus"></div>
   </div>
 
   <div class="card hidden" id="inviteCard">
@@ -305,14 +324,14 @@ async function checkMissionRefs(){
 db.auth.onAuthStateChange(async (_e, session) => {
   const staff = session ? await isStaff() : false;
   document.getElementById('authCard').classList.toggle('hidden', !!session);
-  ['workCard','styleCard','inviteCard','staffCard','manageCard'].forEach(id => {
+  ['workCard','styleCard','profileCard','inviteCard','staffCard','manageCard'].forEach(id => {
     const el = document.getElementById(id);
     if (el) el.classList.toggle('hidden', !staff);
   });
   if (!staff) document.getElementById('reviewCard').classList.add('hidden');
   const notice = document.getElementById('memberNotice');
   if (notice) notice.style.display = (session && !staff) ? 'block' : 'none';
-  if (staff) { loadSermons(); loadInvite(); loadStaff(); loadStyle(); }
+  if (staff) { loadSermons(); loadInvite(); loadStaff(); loadStyle(); loadChurchProfile(); }
 });
 
 async function isStaff(){
@@ -340,8 +359,55 @@ async function signIn(){
   show('authStatus', error ? error.message : 'Check your email for the sign-in link', !error);
 }
 
+/* ---------- church profile: logo, service info, contact ---------- */
+async function loadChurchProfile(){
+  const cid = await myChurchId();
+  const { data } = await db.from('churches')
+    .select('logo_url, service_times, address, pastor_contact_email').eq('id', cid).single();
+  if (!data) return;
+  document.getElementById('serviceTimes').value = data.service_times || '';
+  document.getElementById('churchAddress').value = data.address || '';
+  document.getElementById('pastorContact').value = data.pastor_contact_email || '';
+  const img = document.getElementById('logoPreview');
+  if (data.logo_url) { img.src = data.logo_url; img.style.display = 'block'; }
+}
+
+async function uploadLogo(file){
+  if (!file) return;
+  show('profileStatus', 'Uploading logo…', true);
+  try {
+    const cid = await myChurchId();
+    const ext = (file.name.split('.').pop() || 'png').toLowerCase();
+    const path = cid + '/logo.' + ext;
+    const { error: upErr } = await db.storage.from('church-logos').upload(path, file, { upsert: true, contentType: file.type });
+    if (upErr) throw upErr;
+    const { data: pub } = db.storage.from('church-logos').getPublicUrl(path);
+    // cache-bust so members see the new logo right away instead of a stale cached copy at the same URL
+    const logo_url = pub.publicUrl + '?t=' + Date.now();
+    const { error } = await db.from('churches').update({ logo_url }).eq('id', cid);
+    if (error) throw error;
+    document.getElementById('logoPreview').src = logo_url;
+    document.getElementById('logoPreview').style.display = 'block';
+    show('profileStatus', 'Logo updated.', true);
+  } catch (e) {
+    show('profileStatus', e.message || String(e), false);
+  }
+}
+
+async function saveChurchProfile(){
+  const cid = await myChurchId();
+  const { error } = await db.from('churches').update({
+    service_times: document.getElementById('serviceTimes').value.trim() || null,
+    address: document.getElementById('churchAddress').value.trim() || null,
+    pastor_contact_email: document.getElementById('pastorContact').value.trim() || null,
+  }).eq('id', cid);
+  show('profileStatus', error ? error.message : 'Saved.', !error);
+}
+
 /* ---------- transcript inputs ---------- */
 document.addEventListener('DOMContentLoaded', () => {
+  const lf = document.getElementById('logoFile');
+  if (lf) lf.onchange = () => uploadLogo(lf.files[0]);
   const tf = document.getElementById('tfile');
   if (tf) tf.onchange = () => {
     const f = tf.files[0];
@@ -432,7 +498,7 @@ async function runGeneration(transcript, lectionary_date, feedback, statusId){
   const withAnchors = (ms || []).map((m, i) => ({ ...m, anchor: (data.anchors || [])[i] || '' }));
   lastPoints = data.points || [];
   renderMissions(withAnchors);
-  const { data: srm } = await db.from('sermons').select('title, scripture, summary').eq('id', sermonId).single();
+  const { data: srm } = await db.from('sermons').select('title, scripture, summary, media_url').eq('id', sermonId).single();
   fillMessageFields(srm);
   checkScripture();
   document.getElementById('reviewCard').classList.remove('hidden');
@@ -463,6 +529,7 @@ function fillMessageFields(s){
   document.getElementById('rTitle').value = (s && s.title) || '';
   document.getElementById('rScripture').value = (s && s.scripture) || '';
   document.getElementById('rSummary').value = (s && s.summary) || '';
+  document.getElementById('rMediaUrl').value = (s && s.media_url) || '';
 }
 
 function setEditMode(live){
@@ -527,6 +594,7 @@ async function publish(){
       title: document.getElementById('rTitle').value.trim() || 'Untitled',
       scripture: document.getElementById('rScripture').value.trim() || null,
       summary: document.getElementById('rSummary').value.trim() || null,
+      media_url: document.getElementById('rMediaUrl').value.trim() || null,
       status: 'published',
     }).eq('id', sermonId);
     if (pErr) throw pErr;
