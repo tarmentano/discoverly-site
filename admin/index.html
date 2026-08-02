@@ -139,11 +139,6 @@
   <div class="card hidden" id="profileCard">
     <label>Church profile</label>
     <div class="edit-hint">Shown to your members on the My Church tab.</div>
-    <label>Logo</label>
-    <div style="display:flex;align-items:center;gap:14px;margin-bottom:6px">
-      <img id="logoPreview" src="" style="width:64px;height:64px;border-radius:14px;object-fit:cover;border:1px solid var(--line);display:none">
-      <input type="file" id="logoFile" accept="image/*" style="padding:8px">
-    </div>
     <label>Service times</label>
     <input id="serviceTimes" placeholder="e.g. Sundays 9:00 &amp; 11:00am">
     <label>Address</label>
@@ -363,35 +358,11 @@ async function signIn(){
 async function loadChurchProfile(){
   const cid = await myChurchId();
   const { data } = await db.from('churches')
-    .select('logo_url, service_times, address, pastor_contact_email').eq('id', cid).single();
+    .select('service_times, address, pastor_contact_email').eq('id', cid).single();
   if (!data) return;
   document.getElementById('serviceTimes').value = data.service_times || '';
   document.getElementById('churchAddress').value = data.address || '';
   document.getElementById('pastorContact').value = data.pastor_contact_email || '';
-  const img = document.getElementById('logoPreview');
-  if (data.logo_url) { img.src = data.logo_url; img.style.display = 'block'; }
-}
-
-async function uploadLogo(file){
-  if (!file) return;
-  show('profileStatus', 'Uploading logo…', true);
-  try {
-    const cid = await myChurchId();
-    const ext = (file.name.split('.').pop() || 'png').toLowerCase();
-    const path = cid + '/logo.' + ext;
-    const { error: upErr } = await db.storage.from('church-logos').upload(path, file, { upsert: true, contentType: file.type });
-    if (upErr) throw upErr;
-    const { data: pub } = db.storage.from('church-logos').getPublicUrl(path);
-    // cache-bust so members see the new logo right away instead of a stale cached copy at the same URL
-    const logo_url = pub.publicUrl + '?t=' + Date.now();
-    const { error } = await db.from('churches').update({ logo_url }).eq('id', cid);
-    if (error) throw error;
-    document.getElementById('logoPreview').src = logo_url;
-    document.getElementById('logoPreview').style.display = 'block';
-    show('profileStatus', 'Logo updated.', true);
-  } catch (e) {
-    show('profileStatus', e.message || String(e), false);
-  }
 }
 
 async function saveChurchProfile(){
@@ -406,8 +377,6 @@ async function saveChurchProfile(){
 
 /* ---------- transcript inputs ---------- */
 document.addEventListener('DOMContentLoaded', () => {
-  const lf = document.getElementById('logoFile');
-  if (lf) lf.onchange = () => uploadLogo(lf.files[0]);
   const tf = document.getElementById('tfile');
   if (tf) tf.onchange = () => {
     const f = tf.files[0];
