@@ -41,6 +41,11 @@
   .m-row{display:flex;align-items:center;gap:10px;margin-top:8px;font-size:12px;color:var(--muted)}
   .m-cat{font-size:11px;font-weight:700;color:var(--pine);background:var(--pine-bg);padding:4px 11px;border-radius:999px}
   .m-del{margin-left:auto;border:1px solid var(--line);background:#fff;color:var(--rose);border-radius:8px;font-size:11.5px;font-weight:700;padding:5px 10px;cursor:pointer}
+  .m-redraft{display:flex;align-items:center;gap:8px;margin-top:9px;flex-wrap:wrap}
+  .m-fb{flex:1;min-width:160px;border:1px solid var(--line);border-radius:8px;padding:6px 10px;font-size:12px;font-family:inherit}
+  .m-redraft-status{font-size:11.5px;color:var(--muted)}
+  .m-redraft-status.err{color:var(--rose)}
+  .m-redraft-status.ok{color:var(--green)}
   .edit-hint{font-size:11.5px;color:var(--muted);margin-bottom:10px;line-height:1.5}
   .points{background:var(--pine-bg);padding:10px 13px;border-radius:10px;margin-bottom:12px;font-size:12.5px;color:var(--muted);line-height:1.6}
   .hidden{display:none}
@@ -517,7 +522,79 @@ function renderMissions(ms){
       (m.anchor ? '<div class="m-anchor">From: ' + esc(m.anchor) + '</div>' : '') +
       '<div class="m-row"><span class="m-cat">' + esc(m.category) + '</span>' +
       '<button class="m-del" onclick="this.closest(\'.mission\').remove()">Remove</button></div>' +
+      '<div class="m-redraft">' +
+        '<input type="text" class="m-fb" placeholder="Optional: what should change about just this one?" />' +
+        '<button class="sm-btn" onclick="redraftOneMission(this)">🔄 Redraft this one</button>' +
+        '<span class="m-redraft-status"></span>' +
+      '</div>' +
     '</div>').join('');
+}
+
+/* Redrafts a single mission in place — the other four (and the sermon's title/scripture/summary/
+   points) are left untouched. Only usable once missions exist, i.e. after at least one full draft. */
+async function redraftOneMission(btn){
+  const card = btn.closest('.mission');
+  const missionId = card.dataset.id;
+  const fbInput = card.querySelector('.m-fb');
+  const fb = fbInput.value.trim();
+  const statusEl = card.querySelector('.m-redraft-status');
+
+  const transcript = document.getElementById('transcript').value.trim();
+  const lect = document.querySelector('input[name=mode]:checked').value === 'lectionary';
+  const date = document.getElementById('date').value;
+  if (transcript.length < 200 && !(lect && date)) {
+    statusEl.className = 'm-redraft-status err';
+    statusEl.textContent = 'Paste the transcript back into the box above first — it isn\'t saved between visits.';
+    return;
+  }
+
+  btn.disabled = true;
+  statusEl.className = 'm-redraft-status';
+  statusEl.textContent = 'Redrafting…';
+
+  const { data, error } = await db.functions.invoke('process-sermon', {
+    body: {
+      sermon_id: sermonId, transcript, mission_id: missionId, mission_feedback: fb || undefined,
+      lectionary_date: lect ? date : undefined,
+    },
+  });
+
+  btn.disabled = false;
+  if (error) {
+    let m = error.message; try { const b = await error.context.json(); m = b.error || m; } catch(_){}
+    statusEl.className = 'm-redraft-status err';
+    statusEl.textContent = m;
+    return;
+  }
+  if (data.error) {
+    statusEl.className = 'm-redraft-status err';
+    statusEl.textContent = data.error;
+    if (/paid church plan/i.test(data.error)) document.getElementById('upgradeNote').style.display = 'block';
+    return;
+  }
+
+  card.querySelector('.m-title').textContent = (data.mission.emoji || '⭐') + ' ' + data.mission.title;
+  card.querySelector('.m-desc').textContent = data.mission.description;
+  card.querySelector('.m-cat').textContent = data.mission.category;
+  let anchorEl = card.querySelector('.m-anchor');
+  if (data.anchor) {
+    if (!anchorEl) {
+      anchorEl = document.createElement('div');
+      anchorEl.className = 'm-anchor';
+      card.querySelector('.m-desc').insertAdjacentElement('afterend', anchorEl);
+    }
+    anchorEl.textContent = 'From: ' + data.anchor;
+  }
+  fbInput.value = '';
+  statusEl.className = 'm-redraft-status ok';
+  statusEl.textContent = 'Redrafted — review, then Save when ready.';
+  const left = Math.max((data.redrafts_allowed || 0) - (data.redrafts_used || 0) + 1, 0);
+  const redraftCountEl = document.getElementById('redraftCount');
+  if (redraftCountEl) {
+    redraftCountEl.textContent = left > 0
+      ? left + ' redraft' + (left === 1 ? '' : 's') + ' left for this message.'
+      : 'No redrafts left — edit by hand below.';
+  }
 }
 
 function fillMessageFields(s){
@@ -578,7 +655,7 @@ async function publish(){
       const emojiMatch = raw.match(/^(\p{Extended_Pictographic}️?)\s*/u);
       const emoji = emojiMatch ? emojiMatch[1] : '⭐';
       const title = raw.replace(/^(\p{Extended_Pictographic}️?)\s*/u, '').trim().slice(0, 80);
-      const description = c.querySelector('.m-desc').innerText.trim().slice(0, 400);
+      const description = truncateAtSentence(c.querySelector('.m-desc').innerText.trim(), 600);
       const { error } = await db.from('missions').update({ emoji, title, description }).eq('id', id);
       if (error) throw error;
     }
@@ -691,6 +768,18 @@ async function delSermon(id, title){
 
 function show(id, msg, ok){ const el = document.getElementById(id); el.textContent = msg; el.className = 'status ' + (ok ? 'ok' : 'err'); }
 function esc(s){ return String(s ?? '').replace(/</g,'&lt;'); }
+/* Descriptions can run up to 4 sentences now, so a flat character cap risks cutting a sentence — or a
+   word — in half. Truncate at the last full sentence within the limit; fall back to a word boundary
+   only if no sentence end is found early enough to be usable. */
+function truncateAtSentence(text, max){
+  text = String(text || '');
+  if (text.length <= max) return text;
+  const slice = text.slice(0, max);
+  const lastEnd = Math.max(slice.lastIndexOf('. '), slice.lastIndexOf('! '), slice.lastIndexOf('? '));
+  if (lastEnd > max * 0.4) return slice.slice(0, lastEnd + 1).trim();
+  const lastSpace = slice.lastIndexOf(' ');
+  return (lastSpace > 0 ? slice.slice(0, lastSpace) : slice).trim() + '…';
+}
 </script>
 </body>
 </html>
